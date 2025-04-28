@@ -7,7 +7,8 @@ stages:
 variables:
   TF_ROOT: ${CI_PROJECT_DIR}
   AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-  # Role to assume for EKS deployment
+  # Role to assume for EKS deployment - can be overridden by users in their variables
+  # or through the gitlab_aws_role_arn variable in terraform.tfvars
   AWS_ROLE_TO_ASSUME: ${AWS_ROLE_TO_ASSUME}
   # Default State name - can be overridden by users
   TF_STATE_NAME: ${CLUSTER_NAME:-default}-eks-cluster
@@ -23,6 +24,9 @@ variables:
   ENABLE_NGINX_INGRESS: "false"
   ENABLE_ADOT: "false"
   ENABLE_FLUENT_BIT: "false"
+  # Storage add-ons
+  ENABLE_EBS_CSI_DRIVER: "true"  # Enabled by default
+  ENABLE_EFS_CSI_DRIVER: "false"
   NODE_SCALING_METHOD: "none"
 
 # Default configuration - can be overridden in child pipelines
@@ -38,8 +42,21 @@ default:
     - cd ${TF_ROOT}
     - terraform --version
     - |
+      # Read gitlab_aws_role_arn from tfvars file if it exists
+      if [ -f "terraform.tfvars" ] && grep -q "gitlab_aws_role_arn" terraform.tfvars; then
+        CUSTOM_ROLE_ARN=$(grep "gitlab_aws_role_arn" terraform.tfvars | sed 's/.*= *"\(.*\)".*/\1/')
+        if [ ! -z "$CUSTOM_ROLE_ARN" ]; then
+          echo "Using custom role ARN from terraform.tfvars: $CUSTOM_ROLE_ARN"
+          ROLE_TO_ASSUME=$CUSTOM_ROLE_ARN
+        else
+          ROLE_TO_ASSUME=${AWS_ROLE_TO_ASSUME}
+        fi
+      else
+        ROLE_TO_ASSUME=${AWS_ROLE_TO_ASSUME}
+      fi
+      
       # Assume the specified IAM role
-      echo "Assuming role ${AWS_ROLE_TO_ASSUME}..."
+      echo "Assuming role ${ROLE_TO_ASSUME}..."
       
       # Install AWS CLI if not already available
       if ! [ -x "$(command -v aws)" ]; then
@@ -47,7 +64,7 @@ default:
       fi
       
       # Get temporary credentials by assuming the role
-      CREDENTIALS=$(aws sts assume-role --role-arn ${AWS_ROLE_TO_ASSUME} --role-session-name gitlab-ci-${CI_JOB_ID} --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)
+      CREDENTIALS=$(aws sts assume-role --role-arn ${ROLE_TO_ASSUME} --role-session-name gitlab-ci-${CI_JOB_ID} --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)
       
       # Set AWS credentials as environment variables
       export AWS_ACCESS_KEY_ID=$(echo $CREDENTIALS | cut -d' ' -f1)
@@ -84,6 +101,10 @@ default:
       enable_adot = ${ENABLE_ADOT}
       enable_fluent_bit = ${ENABLE_FLUENT_BIT}
       
+      # Storage add-ons
+      enable_ebs_csi_driver = ${ENABLE_EBS_CSI_DRIVER}
+      enable_efs_csi_driver = ${ENABLE_EFS_CSI_DRIVER}
+      
       # External DNS Configuration
       external_dns_hosted_zone_source = "${EXTERNAL_DNS_HOSTED_ZONE_SOURCE:-existing}"
       external_dns_existing_hosted_zone_id = "${EXTERNAL_DNS_EXISTING_HOSTED_ZONE_ID}"
@@ -94,6 +115,7 @@ default:
       gitlab_token = "${GITLAB_TOKEN}"
       gitlab_project_id = "${GITLAB_PROJECT_ID}"
       gitlab_pipeline_ref = "${GITLAB_PIPELINE_REF:-main}"
+      gitlab_aws_role_arn = "${ROLE_TO_ASSUME}"
       
       # Any additional variables from environment
       # This will be empty if no TF_VAR_* variables are set

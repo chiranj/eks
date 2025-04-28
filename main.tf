@@ -9,13 +9,13 @@ provider "aws" {
 }
 
 locals {
-  name = var.cluster_name
+  name       = var.cluster_name
   create_vpc = var.vpc_mode == "create_new"
 
   # Determine if using Karpenter or Cluster Autoscaler
-  use_karpenter = var.node_scaling_method == "karpenter"
+  use_karpenter          = var.node_scaling_method == "karpenter"
   use_cluster_autoscaler = var.node_scaling_method == "cluster_autoscaler"
-  
+
   # Build a map of add-on selections
   addons_enabled = {
     aws_load_balancer_controller = var.enable_aws_load_balancer_controller
@@ -29,6 +29,8 @@ locals {
     nginx_ingress                = var.enable_nginx_ingress
     adot                         = var.enable_adot
     fluent_bit                   = var.enable_fluent_bit
+    ebs_csi_driver               = var.enable_ebs_csi_driver
+    efs_csi_driver               = var.enable_efs_csi_driver
   }
 
   # Tags
@@ -79,9 +81,14 @@ module "eks_cluster" {
   control_plane_subnet_ids        = local.create_vpc ? module.vpc[0].public_subnets : var.control_plane_subnet_ids
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
-  
+
   # Node Groups
-  eks_managed_node_groups = var.eks_managed_node_groups
+  eks_managed_node_groups = var.node_group_ami_id != "" ? {
+    for name, group in var.eks_managed_node_groups : name => merge(
+      group,
+      { ami_id = lookup(group, "ami_id", var.node_group_ami_id) }
+    )
+  } : var.eks_managed_node_groups
 
   tags = local.tags
 }
@@ -92,7 +99,7 @@ module "eks_oidc_provider" {
 
   cluster_name = module.eks_cluster.cluster_name
   oidc_url     = module.eks_cluster.cluster_oidc_issuer_url
-  
+
   tags = local.tags
 }
 
@@ -103,7 +110,7 @@ module "aws_load_balancer_controller_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
   tags = local.tags
 }
 
@@ -114,7 +121,7 @@ module "karpenter_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
   tags = local.tags
 }
 
@@ -125,7 +132,7 @@ module "cluster_autoscaler_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
   tags = local.tags
 }
 
@@ -136,7 +143,7 @@ module "keda_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
   tags = local.tags
 }
 
@@ -144,14 +151,14 @@ module "external_dns_iam" {
   source = "./modules/add-ons/external-dns"
   count  = local.addons_enabled.external_dns ? 1 : 0
 
-  oidc_provider_arn     = module.eks_oidc_provider.oidc_provider_arn
-  cluster_name          = module.eks_cluster.cluster_name
-  
+  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  cluster_name      = module.eks_cluster.cluster_name
+
   # Hosted zone configuration
-  hosted_zone_source       = var.external_dns_hosted_zone_source
-  existing_hosted_zone_id  = var.external_dns_existing_hosted_zone_id
-  domain                   = var.external_dns_domain
-  
+  hosted_zone_source      = var.external_dns_hosted_zone_source
+  existing_hosted_zone_id = var.external_dns_existing_hosted_zone_id
+  domain                  = var.external_dns_domain
+
   tags = local.tags
 }
 
@@ -161,7 +168,7 @@ module "prometheus_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
   tags = local.tags
 }
 
@@ -172,7 +179,7 @@ module "secrets_manager_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
   tags = local.tags
 }
 
@@ -183,7 +190,7 @@ module "cert_manager_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
   tags = local.tags
 }
 
@@ -194,7 +201,7 @@ module "nginx_ingress_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
   tags = local.tags
 }
 
@@ -205,7 +212,7 @@ module "adot_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
   tags = local.tags
 }
 
@@ -216,7 +223,29 @@ module "fluent_bit_iam" {
 
   oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
-  
+
+  tags = local.tags
+}
+
+# Amazon EBS CSI Driver
+module "ebs_csi_driver_iam" {
+  source = "./modules/add-ons/ebs-csi-driver"
+  count  = local.addons_enabled.ebs_csi_driver ? 1 : 0
+
+  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  cluster_name      = module.eks_cluster.cluster_name
+
+  tags = local.tags
+}
+
+# Amazon EFS CSI Driver
+module "efs_csi_driver_iam" {
+  source = "./modules/add-ons/efs-csi-driver"
+  count  = local.addons_enabled.efs_csi_driver ? 1 : 0
+
+  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  cluster_name      = module.eks_cluster.cluster_name
+
   tags = local.tags
 }
 
@@ -225,72 +254,83 @@ module "gitlab_integration" {
   source = "./modules/gitlab-integration"
   count  = var.trigger_gitlab_pipeline ? 1 : 0
 
-  gitlab_token          = var.gitlab_token
-  gitlab_project_id     = var.gitlab_project_id
-  gitlab_pipeline_ref   = var.gitlab_pipeline_ref
-  
-  cluster_name          = module.eks_cluster.cluster_name
-  cluster_endpoint      = module.eks_cluster.cluster_endpoint
-  cluster_ca_data       = module.eks_cluster.cluster_certificate_authority_data
-  oidc_provider_arn     = module.eks_oidc_provider.oidc_provider_arn
-  
+  gitlab_token        = var.gitlab_token
+  gitlab_project_id   = var.gitlab_project_id
+  gitlab_pipeline_ref = var.gitlab_pipeline_ref
+  aws_role_arn        = var.gitlab_aws_role_arn
+
+  cluster_name      = module.eks_cluster.cluster_name
+  cluster_endpoint  = module.eks_cluster.cluster_endpoint
+  cluster_ca_data   = module.eks_cluster.cluster_certificate_authority_data
+  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+
   # Add-on selections and IAM roles
   addons_config = {
     aws_load_balancer_controller = local.addons_enabled.aws_load_balancer_controller ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.aws_load_balancer_controller_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
-    
+
     karpenter = local.addons_enabled.karpenter ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.karpenter_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
-    
+
     cluster_autoscaler = local.addons_enabled.cluster_autoscaler ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.cluster_autoscaler_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
-    
+
     keda = local.addons_enabled.keda ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.keda_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
-    
+
     external_dns = local.addons_enabled.external_dns ? {
-      enabled = true
-      iam_role_arn = try(module.external_dns_iam[0].role_arn, "")
-      hosted_zone_id = try(module.external_dns_iam[0].hosted_zone_id, "")
+      enabled                  = true
+      iam_role_arn             = try(module.external_dns_iam[0].role_arn, "")
+      hosted_zone_id           = try(module.external_dns_iam[0].hosted_zone_id, "")
       hosted_zone_name_servers = try(module.external_dns_iam[0].hosted_zone_name_servers, [])
     } : { enabled = false, iam_role_arn = "", hosted_zone_id = "", hosted_zone_name_servers = [] }
-    
+
     prometheus = local.addons_enabled.prometheus ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.prometheus_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
-    
+
     secrets_manager = local.addons_enabled.secrets_manager ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.secrets_manager_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
-    
+
     cert_manager = local.addons_enabled.cert_manager ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.cert_manager_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
-    
+
     nginx_ingress = local.addons_enabled.nginx_ingress ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.nginx_ingress_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
-    
+
     adot = local.addons_enabled.adot ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.adot_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
-    
+
     fluent_bit = local.addons_enabled.fluent_bit ? {
-      enabled = true
+      enabled      = true
       iam_role_arn = try(module.fluent_bit_iam[0].role_arn, "")
+    } : { enabled = false, iam_role_arn = "" },
+
+    ebs_csi_driver = local.addons_enabled.ebs_csi_driver ? {
+      enabled      = true
+      iam_role_arn = try(module.ebs_csi_driver_iam[0].role_arn, "")
+    } : { enabled = false, iam_role_arn = "" },
+
+    efs_csi_driver = local.addons_enabled.efs_csi_driver ? {
+      enabled      = true
+      iam_role_arn = try(module.efs_csi_driver_iam[0].role_arn, "")
     } : { enabled = false, iam_role_arn = "" }
   }
 
@@ -307,6 +347,8 @@ module "gitlab_integration" {
     module.cert_manager_iam,
     module.nginx_ingress_iam,
     module.adot_iam,
-    module.fluent_bit_iam
+    module.fluent_bit_iam,
+    module.ebs_csi_driver_iam,
+    module.efs_csi_driver_iam
   ]
 }

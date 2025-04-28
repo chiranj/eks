@@ -13,6 +13,9 @@ This repository is designed to be deployed via GitLab CI/CD pipelines, providing
 - Configuration is handled through CI/CD variables or a terraform.tfvars file
 - Uses GitLab-managed Terraform state with cluster-specific state paths
 - Dynamically creates AWS resources only for the add-ons you enable
+- Supports custom IAM role assumption for deployment permissions:
+  - Via GitLab CI/CD variable: `AWS_ROLE_TO_ASSUME` (recommended)
+  - Via terraform.tfvars: `gitlab_aws_role_arn`
 
 ### How to Use in Your Project
 

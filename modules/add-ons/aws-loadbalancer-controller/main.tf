@@ -36,7 +36,7 @@ resource "aws_iam_role" "this" {
 resource "aws_iam_policy" "this" {
   name        = "${var.cluster_name}-${local.name}"
   description = "IAM policy for AWS Load Balancer Controller"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

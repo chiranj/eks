@@ -29,6 +29,9 @@ variables:
   SUBNET_IDS: '["subnet-123", "subnet-456", "subnet-789"]'
   CONTROL_PLANE_SUBNET_IDS: '["subnet-123", "subnet-456", "subnet-789"]'
   
+  # IAM role to assume (required for deployment permissions)
+  AWS_ROLE_TO_ASSUME: "arn:aws:iam::123456789012:role/MyCustomEksDeploymentRole"
+  
   # Optional add-ons (enable only what you need)
   ENABLE_AWS_LOAD_BALANCER_CONTROLLER: "true"
   NODE_SCALING_METHOD: "karpenter"  # Options: karpenter, cluster_autoscaler, none
@@ -66,6 +69,27 @@ The pipeline automatically:
 2. Only creates AWS resources for add-ons that you've enabled
 3. Uses GitLab-managed state with a cluster-specific state file path
 
+### Role-Based Access Control
+
+The pipeline uses AWS role assumption for permissions:
+
+1. **How it works**:
+   - Your GitLab runner uses its instance role to assume the role specified in `AWS_ROLE_TO_ASSUME`
+   - All AWS operations are performed using the permissions of the assumed role
+   - This follows the least privilege principle
+
+2. **Setting up your role**:
+   - Create a custom IAM role in your AWS account with the necessary permissions
+   - Add a trust relationship allowing your GitLab runner's role/instance profile to assume it
+   - Specify this role ARN in one of two ways:
+     - Set as `AWS_ROLE_TO_ASSUME` in your GitLab CI/CD variables (recommended)
+     - Set as `gitlab_aws_role_arn` in your terraform.tfvars file
+
+3. **Required permissions**:
+   - The role must have permissions to create all the AWS resources needed for your selected add-ons
+   - At minimum: EKS, IAM, EC2, and VPC permissions
+   - Additional permissions based on which add-ons you enable
+
 ### Option 2: Use terraform.tfvars
 
 1. Copy our module into your repository
@@ -100,6 +124,51 @@ The included GitLab CI/CD pipeline has the following stages:
 ## Customizing the Pipeline
 
 You can override any job or add additional jobs by defining them in your own `.gitlab-ci.yml` file after the include statement.
+
+### Custom IAM Role Configuration
+
+You have two options to specify a custom IAM role for deployment:
+
+1. **Via GitLab CI/CD Variable (Recommended)**:
+   ```yaml
+   variables:
+     AWS_ROLE_TO_ASSUME: "arn:aws:iam::123456789012:role/MyCustomEksDeploymentRole"
+   ```
+
+2. **Via terraform.tfvars**:
+   ```hcl
+   gitlab_aws_role_arn = "arn:aws:iam::123456789012:role/MyCustomEksDeploymentRole"
+   ```
+
+The pipeline will:
+1. First check if a custom role is specified in terraform.tfvars (if the file exists)
+2. Fall back to the AWS_ROLE_TO_ASSUME environment variable if no custom role is found in tfvars
+3. Use the role to assume temporary AWS credentials for deployment
+4. Pass the role ARN to child pipelines in the CLUSTER_CONFIG payload
+
+This approach gives you flexibility to manage deployment permissions while keeping your configuration clean.
+
+### In Child Pipelines
+
+If your organization has multiple GitLab repositories that deploy different parts of the infrastructure,
+you can extract and use the custom role from the CLUSTER_CONFIG payload:
+
+```yaml
+before_script:
+  - |
+    # Extract custom AWS role from CLUSTER_CONFIG if provided
+    if [ ! -z "$CLUSTER_CONFIG" ]; then
+      CUSTOM_ROLE=$(echo $CLUSTER_CONFIG | jq -r '.deployment.aws_role_arn // empty')
+      if [ ! -z "$CUSTOM_ROLE" ] && [ "$CUSTOM_ROLE" != "null" ]; then
+        echo "Using custom AWS role from CLUSTER_CONFIG: $CUSTOM_ROLE"
+        AWS_ROLE_TO_ASSUME=$CUSTOM_ROLE
+      fi
+    fi
+    
+    # Assume the AWS role
+    CREDENTIALS=$(aws sts assume-role --role-arn ${AWS_ROLE_TO_ASSUME} --role-session-name gitlab-ci-${CI_JOB_ID})
+    # ... Rest of your AWS credential setup
+```
 
 ## Troubleshooting
 

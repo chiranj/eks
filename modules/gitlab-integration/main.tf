@@ -7,13 +7,16 @@
 locals {
   payload = jsonencode({
     cluster = {
-      name                   = var.cluster_name
-      endpoint               = var.cluster_endpoint
-      certificate_authority  = var.cluster_ca_data
-      oidc_provider_arn      = var.oidc_provider_arn
-      region                 = data.aws_region.current.name
+      name                  = var.cluster_name
+      endpoint              = var.cluster_endpoint
+      certificate_authority = var.cluster_ca_data
+      oidc_provider_arn     = var.oidc_provider_arn
+      region                = data.aws_region.current.name
     }
     addons = var.addons_config
+    deployment = {
+      aws_role_arn = var.aws_role_arn != "" ? var.aws_role_arn : null
+    }
   })
 }
 

@@ -25,8 +25,13 @@ eks_managed_node_groups = {
       Environment = "prod"
       Role        = "general"
     }
+    # Uncomment to override the default EKS-optimized AMI for this specific node group
+    # ami_id = "ami-0123456789abcdef0"
   }
 }
+
+# Optional: Custom AMI ID for all node groups (can be overridden per node group)
+# node_group_ami_id = "ami-0123456789abcdef0"
 
 # Add-ons configuration
 enable_aws_load_balancer_controller = true
@@ -39,6 +44,8 @@ enable_cert_manager                 = true
 enable_nginx_ingress                = true
 enable_adot                         = true
 enable_fluent_bit                   = true
+enable_ebs_csi_driver               = true
+enable_efs_csi_driver               = false
 
 # External DNS configuration (if enabled)
 external_dns_hosted_zone_source     = "existing"  # "existing" or "create"
@@ -49,6 +56,7 @@ external_dns_domain                 = "example.com"  # Required if external_dns_
 trigger_gitlab_pipeline = true
 gitlab_project_id       = "12345678"  # GitLab project ID for pipeline triggering
 gitlab_pipeline_ref     = "main"      # GitLab pipeline reference (branch/tag)
+gitlab_aws_role_arn     = "arn:aws:iam::123456789012:role/MyCustomEksDeploymentRole" # IAM role ARN to assume during deployment
 
 # Tags
 tags = {

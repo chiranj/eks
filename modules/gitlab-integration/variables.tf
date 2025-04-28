@@ -15,6 +15,12 @@ variable "gitlab_pipeline_ref" {
   default     = "main"
 }
 
+variable "aws_role_arn" {
+  description = "IAM role ARN to be assumed by GitLab CI/CD for deploying resources"
+  type        = string
+  default     = ""
+}
+
 variable "cluster_name" {
   description = "Name of the EKS cluster"
   type        = string
@@ -38,8 +44,19 @@ variable "oidc_provider_arn" {
 
 variable "addons_config" {
   description = "Configuration for add-ons to be installed via GitLab pipeline"
-  type        = map(object({
-    enabled      = bool
-    iam_role_arn = string
-  }))
+  type        = map(any)
+  # Complex type definition to support different add-on configurations:
+  # Standard add-ons use this structure:
+  # {
+  #   enabled      = bool
+  #   iam_role_arn = string  
+  # }
+  # 
+  # External DNS uses additional fields:
+  # {
+  #   enabled      = bool
+  #   iam_role_arn = string
+  #   hosted_zone_id = string
+  #   hosted_zone_name_servers = list(string) 
+  # }
 }

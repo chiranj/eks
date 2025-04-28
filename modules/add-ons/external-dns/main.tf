@@ -7,13 +7,13 @@
 
 locals {
   name = "external-dns"
-  
+
   # Determine if we should create a new hosted zone
   create_hosted_zone = var.hosted_zone_source == "create" && var.domain != ""
-  
+
   # Determine which hosted zone ID to use
   hosted_zone_id = local.create_hosted_zone ? aws_route53_zone.this[0].id : var.existing_hosted_zone_id
-  
+
   # Determine the ARN pattern based on whether we have a specific hosted zone or want to allow all
   hosted_zone_arn_pattern = local.hosted_zone_id != "" ? "arn:aws:route53:::hostedzone/${local.hosted_zone_id}" : "arn:aws:route53:::hostedzone/*"
 }
@@ -21,13 +21,13 @@ locals {
 # Create Route53 hosted zone if requested
 resource "aws_route53_zone" "this" {
   count = local.create_hosted_zone ? 1 : 0
-  
+
   name = var.domain
-  
+
   tags = merge(
     var.tags,
     {
-      Name = "${var.cluster_name}-${var.domain}"
+      Name                                        = "${var.cluster_name}-${var.domain}"
       "kubernetes.io/cluster/${var.cluster_name}" = "owned"
     }
   )
@@ -60,7 +60,7 @@ resource "aws_iam_role" "this" {
 resource "aws_iam_policy" "this" {
   name        = "${var.cluster_name}-${local.name}"
   description = "IAM policy for External DNS"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [

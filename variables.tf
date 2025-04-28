@@ -49,6 +49,12 @@ variable "eks_managed_node_groups" {
   default     = {}
 }
 
+variable "node_group_ami_id" {
+  description = "Custom AMI ID for EKS worker nodes. If specified, this AMI will be used for all node groups unless overridden in the eks_managed_node_groups configuration."
+  type        = string
+  default     = ""
+}
+
 variable "vpc_mode" {
   description = "Select whether to use an existing VPC or create a new one"
   type        = string
@@ -163,6 +169,18 @@ variable "enable_fluent_bit" {
   default     = false
 }
 
+variable "enable_ebs_csi_driver" {
+  description = "Enable Amazon EBS CSI Driver add-on"
+  type        = bool
+  default     = true
+}
+
+variable "enable_efs_csi_driver" {
+  description = "Enable Amazon EFS CSI Driver add-on"
+  type        = bool
+  default     = false
+}
+
 variable "trigger_gitlab_pipeline" {
   description = "Enable triggering GitLab pipeline for Kubernetes components installation"
   type        = bool
@@ -179,13 +197,19 @@ variable "gitlab_token" {
 variable "gitlab_project_id" {
   description = "GitLab project ID for pipeline triggering"
   type        = string
-  default     = "12345678"  # Replace with your actual GitLab project ID
+  default     = "12345678" # Replace with your actual GitLab project ID
 }
 
 variable "gitlab_pipeline_ref" {
   description = "GitLab pipeline reference (branch/tag) to use"
   type        = string
   default     = "main"
+}
+
+variable "gitlab_aws_role_arn" {
+  description = "IAM role ARN to be assumed by GitLab CI/CD for deploying resources"
+  type        = string
+  default     = "" # Empty string means use the default AWS_ROLE_TO_ASSUME from GitLab CI/CD variables
 }
 
 variable "tags" {

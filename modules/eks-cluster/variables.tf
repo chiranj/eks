@@ -37,7 +37,7 @@ variable "cluster_endpoint_private_access" {
 }
 
 variable "eks_managed_node_groups" {
-  description = "Map of EKS managed node group definitions"
+  description = "Map of EKS managed node group definitions. Can include ami_id to specify a custom AMI."
   type        = any
   default     = {}
 }

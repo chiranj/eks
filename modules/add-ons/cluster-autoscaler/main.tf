@@ -35,7 +35,7 @@ resource "aws_iam_role" "this" {
 resource "aws_iam_policy" "this" {
   name        = "${var.cluster_name}-${local.name}"
   description = "IAM policy for Cluster Autoscaler"
-  
+
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -62,7 +62,7 @@ resource "aws_iam_policy" "this" {
         Resource = "*"
         Condition = {
           StringEquals = {
-            "autoscaling:ResourceTag/k8s.io/cluster-autoscaler/enabled" = "true"
+            "autoscaling:ResourceTag/k8s.io/cluster-autoscaler/enabled"         = "true"
             "autoscaling:ResourceTag/kubernetes.io/cluster/${var.cluster_name}" = "owned"
           }
         }
