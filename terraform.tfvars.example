@@ -1,0 +1,58 @@
+# Example terraform.tfvars file
+# Copy this to terraform.tfvars and modify as needed
+
+# Cluster configuration
+region         = "us-east-1"
+cluster_name   = "eks-prod"
+cluster_version = "1.29"
+
+# VPC configuration (use existing VPC)
+vpc_mode      = "existing"
+vpc_id        = "vpc-01234567890abcdef"
+subnet_ids    = ["subnet-01234567890abcdef", "subnet-01234567890abcdef", "subnet-01234567890abcdef"]
+control_plane_subnet_ids = ["subnet-01234567890abcdef", "subnet-01234567890abcdef", "subnet-01234567890abcdef"]
+
+# Node group configuration
+eks_managed_node_groups = {
+  default = {
+    name = "default-node-group"
+    instance_types = ["m5.large"]
+    capacity_type  = "ON_DEMAND"
+    min_size     = 2
+    max_size     = 5
+    desired_size = 2
+    labels = {
+      Environment = "prod"
+      Role        = "general"
+    }
+  }
+}
+
+# Add-ons configuration
+enable_aws_load_balancer_controller = true
+node_scaling_method                 = "karpenter"  # "karpenter", "cluster_autoscaler", or "none"
+enable_keda                         = true
+enable_external_dns                 = true
+enable_prometheus                   = true
+enable_secrets_manager              = true
+enable_cert_manager                 = true
+enable_nginx_ingress                = true
+enable_adot                         = true
+enable_fluent_bit                   = true
+
+# External DNS configuration (if enabled)
+external_dns_hosted_zone_source     = "existing"  # "existing" or "create"
+external_dns_existing_hosted_zone_id = "Z1234567890ABCDEFGHIJK"  # Required if external_dns_hosted_zone_source is "existing"
+external_dns_domain                 = "example.com"  # Required if external_dns_hosted_zone_source is "create"
+
+# GitLab integration (for Kubernetes components installation)
+trigger_gitlab_pipeline = true
+gitlab_project_id       = "12345678"  # GitLab project ID for pipeline triggering
+gitlab_pipeline_ref     = "main"      # GitLab pipeline reference (branch/tag)
+
+# Tags
+tags = {
+  Environment = "production"
+  ManagedBy   = "terraform"
+  Project     = "eks-cluster"
+}

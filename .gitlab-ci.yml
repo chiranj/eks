@@ -1,0 +1,175 @@
+stages:
+  - validate
+  - plan
+  - apply
+  - destroy
+
+variables:
+  TF_ROOT: ${CI_PROJECT_DIR}
+  AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
+  # Role to assume for EKS deployment
+  AWS_ROLE_TO_ASSUME: ${AWS_ROLE_TO_ASSUME}
+  # Default State name - can be overridden by users
+  TF_STATE_NAME: ${CLUSTER_NAME:-default}-eks-cluster
+  
+  # Set all add-on variables to false by default
+  # Users will override these in their pipeline
+  ENABLE_AWS_LOAD_BALANCER_CONTROLLER: "false"
+  ENABLE_KEDA: "false"
+  ENABLE_EXTERNAL_DNS: "false"
+  ENABLE_PROMETHEUS: "false"
+  ENABLE_SECRETS_MANAGER: "false"
+  ENABLE_CERT_MANAGER: "false"
+  ENABLE_NGINX_INGRESS: "false"
+  ENABLE_ADOT: "false"
+  ENABLE_FLUENT_BIT: "false"
+  NODE_SCALING_METHOD: "none"
+
+# Default configuration - can be overridden in child pipelines
+default:
+  image: 
+    name: hashicorp/terraform:1.5.0
+    entrypoint: [""]
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-${CLUSTER_NAME}"
+    paths:
+      - ${TF_ROOT}/.terraform
+  before_script:
+    - cd ${TF_ROOT}
+    - terraform --version
+    - |
+      # Assume the specified IAM role
+      echo "Assuming role ${AWS_ROLE_TO_ASSUME}..."
+      
+      # Install AWS CLI if not already available
+      if ! [ -x "$(command -v aws)" ]; then
+        apk add --no-cache aws-cli
+      fi
+      
+      # Get temporary credentials by assuming the role
+      CREDENTIALS=$(aws sts assume-role --role-arn ${AWS_ROLE_TO_ASSUME} --role-session-name gitlab-ci-${CI_JOB_ID} --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)
+      
+      # Set AWS credentials as environment variables
+      export AWS_ACCESS_KEY_ID=$(echo $CREDENTIALS | cut -d' ' -f1)
+      export AWS_SECRET_ACCESS_KEY=$(echo $CREDENTIALS | cut -d' ' -f2)
+      export AWS_SESSION_TOKEN=$(echo $CREDENTIALS | cut -d' ' -f3)
+      
+      echo "Successfully assumed role. AWS identity:"
+      aws sts get-caller-identity
+      
+      # Generate tfvars file from environment variables
+      cat > terraform.auto.tfvars <<EOL
+      # Auto-generated from GitLab CI/CD variables
+      cluster_name = "${CLUSTER_NAME}"
+      region = "${AWS_DEFAULT_REGION}"
+      
+      # VPC Configuration
+      vpc_mode = "${VPC_MODE:-existing}"
+      vpc_id = "${VPC_ID}"
+      subnet_ids = ${SUBNET_IDS}
+      control_plane_subnet_ids = ${CONTROL_PLANE_SUBNET_IDS}
+      
+      # Node Configuration
+      cluster_version = "${CLUSTER_VERSION:-1.29}"
+      
+      # Add-on Configuration
+      enable_aws_load_balancer_controller = ${ENABLE_AWS_LOAD_BALANCER_CONTROLLER}
+      node_scaling_method = "${NODE_SCALING_METHOD}"
+      enable_keda = ${ENABLE_KEDA}
+      enable_external_dns = ${ENABLE_EXTERNAL_DNS}
+      enable_prometheus = ${ENABLE_PROMETHEUS}
+      enable_secrets_manager = ${ENABLE_SECRETS_MANAGER}
+      enable_cert_manager = ${ENABLE_CERT_MANAGER}
+      enable_nginx_ingress = ${ENABLE_NGINX_INGRESS}
+      enable_adot = ${ENABLE_ADOT}
+      enable_fluent_bit = ${ENABLE_FLUENT_BIT}
+      
+      # External DNS Configuration
+      external_dns_hosted_zone_source = "${EXTERNAL_DNS_HOSTED_ZONE_SOURCE:-existing}"
+      external_dns_existing_hosted_zone_id = "${EXTERNAL_DNS_EXISTING_HOSTED_ZONE_ID}"
+      external_dns_domain = "${EXTERNAL_DNS_DOMAIN}"
+      
+      # GitLab Integration
+      trigger_gitlab_pipeline = ${TRIGGER_GITLAB_PIPELINE:-true}
+      gitlab_token = "${GITLAB_TOKEN}"
+      gitlab_project_id = "${GITLAB_PROJECT_ID}"
+      gitlab_pipeline_ref = "${GITLAB_PIPELINE_REF:-main}"
+      
+      # Any additional variables from environment
+      # This will be empty if no TF_VAR_* variables are set
+      $(env | grep '^TF_VAR_' | sed 's/^TF_VAR_//' | sed 's/=/ = "/' | sed 's/$/"/')
+      EOL
+    - |
+      # Initialize Terraform with GitLab-managed state
+      terraform init \
+        -backend=true \
+        -backend-config="address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}" \
+        -backend-config="lock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock" \
+        -backend-config="unlock_address=${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/${TF_STATE_NAME}/lock" \
+        -backend-config="username=${GITLAB_USER_LOGIN}" \
+        -backend-config="password=${CI_JOB_TOKEN}" \
+        -backend-config="lock_method=POST" \
+        -backend-config="unlock_method=DELETE" \
+        -backend-config="retry_wait_min=5"
+
+# Job Templates
+.terraform_plan:
+  stage: plan
+  script:
+    - terraform plan -out=tfplan
+  artifacts:
+    paths:
+      - ${TF_ROOT}/tfplan
+
+.terraform_apply:
+  stage: apply
+  script:
+    - terraform apply -input=false tfplan
+  dependencies:
+    - plan
+  when: manual
+
+.terraform_destroy:
+  stage: destroy
+  script:
+    - terraform destroy -auto-approve
+  when: manual
+
+# Validation jobs
+validate:
+  stage: validate
+  script:
+    - terraform validate
+    - terraform fmt -check -recursive
+
+# Main pipeline jobs
+plan:
+  extends: .terraform_plan
+  
+apply:
+  extends: .terraform_apply
+  
+destroy:
+  extends: .terraform_destroy
+
+# Templates for child pipelines to include this file
+.include_template:
+  # Example in child pipelines:
+  # include:
+  #   - project: 'your-org/eks-module'
+  #     ref: main
+  #     file: '.gitlab-ci.yml'
+  #
+  # Variables to set in child pipelines:
+  # variables:
+  #   CLUSTER_NAME: "my-eks-cluster"
+  #   VPC_ID: "vpc-12345"
+  #   SUBNET_IDS: '["subnet-123", "subnet-456", "subnet-789"]'
+  #   ENABLE_AWS_LOAD_BALANCER_CONTROLLER: "true"
+  #   ENABLE_EXTERNAL_DNS: "true"
+  #   EXTERNAL_DNS_HOSTED_ZONE_SOURCE: "existing"
+  #   EXTERNAL_DNS_EXISTING_HOSTED_ZONE_ID: "Z1234567890"
+  #   NODE_SCALING_METHOD: "karpenter"
+  #   ENABLE_KEDA: "true"
+  #
+  # Or create a terraform.tfvars file with these settings
