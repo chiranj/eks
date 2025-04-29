@@ -44,15 +44,15 @@ variable "oidc_provider_arn" {
 
 variable "addons_config" {
   description = "Configuration for add-ons to be installed via GitLab pipeline"
-  type        = map(any)
-  # Complex type definition to support different add-on configurations:
-  # Standard add-ons use this structure:
+  type        = any
+  # We use 'any' type to support different structures for different add-ons:
+  # Standard add-ons:
   # {
   #   enabled      = bool
   #   iam_role_arn = string  
   # }
   # 
-  # External DNS uses additional fields:
+  # External DNS:
   # {
   #   enabled      = bool
   #   iam_role_arn = string

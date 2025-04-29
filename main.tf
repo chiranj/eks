@@ -81,14 +81,16 @@ module "eks_cluster" {
   control_plane_subnet_ids        = local.create_vpc ? module.vpc[0].public_subnets : var.control_plane_subnet_ids
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
+  eks_access_entries              = var.eks_access_entries
 
-  # Node Groups
-  eks_managed_node_groups = var.node_group_ami_id != "" ? {
+  # Node Groups with optional custom AMI
+  eks_managed_node_groups = {
     for name, group in var.eks_managed_node_groups : name => merge(
       group,
-      { ami_id = lookup(group, "ami_id", var.node_group_ami_id) }
+      var.node_group_ami_id != "" && !contains(keys(group), "ami_id") ? 
+        { ami_id = var.node_group_ami_id } : {}
     )
-  } : var.eks_managed_node_groups
+  }
 
   tags = local.tags
 }

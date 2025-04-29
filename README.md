@@ -78,6 +78,13 @@ This solution implements a hybrid deployment approach where:
 
 ## Available Add-ons
 
+### Core Add-ons
+- CoreDNS (installed by default with EKS)
+- kube-proxy (installed by default with EKS)
+- vpc-cni (installed by default with EKS)
+- Amazon EBS CSI Driver (enabled by default for persistent volumes)
+
+### Optional Add-ons
 - AWS Load Balancer Controller
 - Node Scaling Options:
   - Karpenter (recommended, modern autoscaling)
@@ -90,6 +97,7 @@ This solution implements a hybrid deployment approach where:
 - NGINX Ingress Controller
 - AWS Distro for OpenTelemetry (ADOT)
 - Fluent Bit (log collection)
+- Amazon EFS CSI Driver (optional, for ReadWriteMany volumes)
 
 ## Usage
 

@@ -212,6 +212,13 @@ variable "gitlab_aws_role_arn" {
   default     = "" # Empty string means use the default AWS_ROLE_TO_ASSUME from GitLab CI/CD variables
 }
 
+# EKS Access Entries (v20+ authentication)
+variable "eks_access_entries" {
+  description = "Map of access entries to add to the EKS cluster"
+  type        = any
+  default     = {}
+}
+
 variable "tags" {
   description = "A map of tags to add to all resources"
   type        = map(string)

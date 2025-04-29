@@ -43,21 +43,27 @@ variable "eks_managed_node_groups" {
 }
 
 variable "manage_aws_auth_configmap" {
-  description = "Whether to manage the aws-auth ConfigMap"
+  description = "Whether to manage the aws-auth ConfigMap (for backward compatibility)"
   type        = bool
   default     = true
 }
 
 variable "aws_auth_roles" {
-  description = "List of IAM roles to add to the aws-auth ConfigMap"
+  description = "List of IAM roles to add to the aws-auth ConfigMap (for backward compatibility)"
   type        = list(any)
   default     = []
 }
 
 variable "aws_auth_users" {
-  description = "List of IAM users to add to the aws-auth ConfigMap"
+  description = "List of IAM users to add to the aws-auth ConfigMap (for backward compatibility)"
   type        = list(any)
   default     = []
+}
+
+variable "eks_access_entries" {
+  description = "Map of access entries to add to the cluster (EKS module v20+)"
+  type        = any
+  default     = {}
 }
 
 variable "tags" {

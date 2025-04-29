@@ -10,7 +10,7 @@ locals {
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 19.0"
+  version = "~> 20.0"
 
   cluster_name                    = local.name
   cluster_version                 = var.cluster_version
@@ -23,10 +23,23 @@ module "eks" {
   # EKS Managed Node Group(s)
   eks_managed_node_groups = var.eks_managed_node_groups
 
-  # aws-auth ConfigMap
-  manage_aws_auth_configmap = var.manage_aws_auth_configmap
-  aws_auth_roles            = var.aws_auth_roles
-  aws_auth_users            = var.aws_auth_users
+  # Access management (v20+ uses access entries instead of aws-auth ConfigMap)
+  authentication_mode = "API_AND_CONFIG_MAP"
+  
+  # Use custom access entries if provided, otherwise convert legacy aws_auth_roles
+  access_entries = length(var.eks_access_entries) > 0 ? var.eks_access_entries : {
+    for i, role in var.aws_auth_roles : "role-${i}" => {
+      principal_arn = lookup(role, "rolearn", "")
+      policy_associations = {
+        admin = {
+          policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+          access_scope = {
+            type = "cluster"
+          }
+        }
+      }
+    } if lookup(role, "rolearn", "") != ""
+  }
 
   # Cluster addons
   cluster_addons = {

@@ -117,6 +117,22 @@ default:
       gitlab_pipeline_ref = "${GITLAB_PIPELINE_REF:-main}"
       gitlab_aws_role_arn = "${ROLE_TO_ASSUME}"
       
+      # EKS Access Entries (v20+)
+      # Uncomment and customize if needed
+      # eks_access_entries = {
+      #   admin = {
+      #     principal_arn = "arn:aws:iam::${AWS_ACCOUNT_ID:-123456789012}:role/eks-admin"
+      #     policy_associations = {
+      #       admin = {
+      #         policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+      #         access_scope = {
+      #           type = "cluster"
+      #         }
+      #       }
+      #     }
+      #   }
+      # }
+      
       # Any additional variables from environment
       # This will be empty if no TF_VAR_* variables are set
       $(env | grep '^TF_VAR_' | sed 's/^TF_VAR_//' | sed 's/=/ = "/' | sed 's/$/"/')

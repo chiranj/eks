@@ -27,11 +27,37 @@ eks_managed_node_groups = {
     }
     # Uncomment to override the default EKS-optimized AMI for this specific node group
     # ami_id = "ami-0123456789abcdef0"
+    
+    # EKS 1.29+ supports node update configuration to minimize disruption
+    # update_config = {
+    #   max_unavailable_percentage = 33  # OR max_unavailable = 1
+    # }
+    
+    # EKS 1.29+ supports node repair configuration
+    # node_repair_config = {
+    #   enabled = true
+    # }
   }
 }
 
 # Optional: Custom AMI ID for all node groups (can be overridden per node group)
 # node_group_ami_id = "ami-0123456789abcdef0"
+
+# Access configuration - new in EKS module v20 (Optional)
+# eks_access_entries = {
+#   # Example role with admin access
+#   admin-role = {
+#     principal_arn = "arn:aws:iam::123456789012:role/eks-admin"
+#     policy_associations = {
+#       admin = {
+#         policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+#         access_scope = {
+#           type = "cluster"
+#         }
+#       }
+#     }
+#   }
+# }
 
 # Add-ons configuration
 enable_aws_load_balancer_controller = true

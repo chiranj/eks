@@ -44,6 +44,10 @@ variables:
   ENABLE_ADOT: "false"
   ENABLE_FLUENT_BIT: "false"
   
+  # Storage add-ons
+  ENABLE_EBS_CSI_DRIVER: "true"  # Enabled by default for persistent volumes
+  ENABLE_EFS_CSI_DRIVER: "false" # Optional for ReadWriteMany volumes
+  
   # For External DNS (if enabled)
   EXTERNAL_DNS_HOSTED_ZONE_SOURCE: "existing"
   EXTERNAL_DNS_EXISTING_HOSTED_ZONE_ID: "Z123456789ABCDEFGHI"
@@ -112,6 +116,39 @@ All variables defined in `variables.tf` can be configured either:
 | subnet_ids | List of subnet IDs for nodes | ["subnet-123", "subnet-456"] |
 | node_scaling_method | Scaling approach to use | "karpenter" |
 | enable_* | Boolean flags for each add-on | true/false |
+| node_group_ami_id | Custom AMI ID for all node groups | "ami-01234567890abcdef" |
+| eks_access_entries | Map of access entries for RBAC (v20+) | See example below |
+
+### EKS Access Entries (v20+)
+
+EKS module v20+ uses the new authentication management system with access entries:
+
+```hcl
+eks_access_entries = {
+  admin-role = {
+    principal_arn = "arn:aws:iam::123456789012:role/eks-admin"
+    policy_associations = {
+      admin = {
+        policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+        access_scope = {
+          type = "cluster"
+        }
+      }
+    }
+  }
+  dev-role = {
+    principal_arn = "arn:aws:iam::123456789012:role/eks-developer"
+    policy_associations = {
+      viewer = {
+        policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSViewPolicy"
+        access_scope = {
+          type = "namespace"
+          namespaces = ["default"]
+        }
+      }
+    }
+  }
+}
 
 ## Pipeline Stages
 
