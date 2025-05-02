@@ -155,7 +155,9 @@ Getting the thumbprint of the gitlab
 
 ```bash
 openssl s_client -servername gitlab.com -showcerts -connect gitlab.com:443 < /dev/null 2>/dev/null | 
-openssl x509 -in /dev/stdin -fingerprint -sha1 -noout | 
+sed -n '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' | 
+awk 'BEGIN {c=0;} /BEGIN CERT/{c++} { if(c==3) print $0; }' | 
+openssl x509 -fingerprint -sha1 -noout | 
 sed 's/SHA1 Fingerprint=//g' | 
 tr -d ':'
 ```
