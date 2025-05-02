@@ -70,6 +70,53 @@ module "vpc" {
   tags = local.tags
 }
 
+# GitLab OIDC Provider and Role - only if gitlab_aws_role_arn is not provided
+module "gitlab_oidc" {
+  source = "./modules/gitlab-oidc"
+  count  = var.gitlab_aws_role_arn == "" ? 1 : 0
+
+  gitlab_host          = var.gitlab_oidc_host
+  gitlab_project_id    = var.gitlab_project_id
+  gitlab_ref_type      = var.gitlab_oidc_ref_type
+  gitlab_ref           = var.gitlab_pipeline_ref
+  cluster_name         = local.name
+  role_name            = var.gitlab_oidc_role_name
+  thumbprint_list      = var.gitlab_oidc_thumbprint
+  create_oidc_provider = var.create_gitlab_oidc_provider
+
+  # Add policies for EKS management
+  managed_policy_arns = [
+    "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  ]
+
+  tags = local.tags
+}
+
+# Determine the GitLab role ARN to use
+locals {
+  gitlab_role_arn = var.gitlab_aws_role_arn != "" ? var.gitlab_aws_role_arn : (
+    length(module.gitlab_oidc) > 0 ? module.gitlab_oidc[0].role_arn : ""
+  )
+
+  # Add GitLab role to access entries if it exists
+  eks_access_entries_with_gitlab = local.gitlab_role_arn != "" ? merge(
+    var.eks_access_entries,
+    {
+      gitlab-deployment = {
+        principal_arn = local.gitlab_role_arn
+        policy_associations = {
+          admin = {
+            policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+            access_scope = {
+              type = "cluster"
+            }
+          }
+        }
+      }
+    }
+  ) : var.eks_access_entries
+}
+
 # EKS Cluster
 module "eks_cluster" {
   source = "./modules/eks-cluster"
@@ -81,16 +128,21 @@ module "eks_cluster" {
   control_plane_subnet_ids        = local.create_vpc ? module.vpc[0].public_subnets : var.control_plane_subnet_ids
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
-  eks_access_entries              = var.eks_access_entries
+  eks_access_entries              = local.eks_access_entries_with_gitlab
 
   # Node Groups with optional custom AMI
   eks_managed_node_groups = {
     for name, group in var.eks_managed_node_groups : name => merge(
       group,
-      var.node_group_ami_id != "" && !contains(keys(group), "ami_id") ? 
-        { ami_id = var.node_group_ami_id } : {}
+      var.node_group_ami_id != "" && !contains(keys(group), "ami_id") ?
+      { ami_id = var.node_group_ami_id } : {}
     )
   }
+  
+  # Launch template configuration
+  create_launch_templates_for_custom_amis = var.create_launch_templates_for_custom_amis
+  service_ipv4_cidr                       = var.service_ipv4_cidr
+  cluster_ip_family                       = var.cluster_ip_family
 
   tags = local.tags
 }
@@ -259,7 +311,7 @@ module "gitlab_integration" {
   gitlab_token        = var.gitlab_token
   gitlab_project_id   = var.gitlab_project_id
   gitlab_pipeline_ref = var.gitlab_pipeline_ref
-  aws_role_arn        = var.gitlab_aws_role_arn
+  aws_role_arn        = local.gitlab_role_arn
 
   cluster_name      = module.eks_cluster.cluster_name
   cluster_endpoint  = module.eks_cluster.cluster_endpoint

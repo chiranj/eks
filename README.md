@@ -13,9 +13,11 @@ This repository is designed to be deployed via GitLab CI/CD pipelines, providing
 - Configuration is handled through CI/CD variables or a terraform.tfvars file
 - Uses GitLab-managed Terraform state with cluster-specific state paths
 - Dynamically creates AWS resources only for the add-ons you enable
-- Supports custom IAM role assumption for deployment permissions:
-  - Via GitLab CI/CD variable: `AWS_ROLE_TO_ASSUME` (recommended)
-  - Via terraform.tfvars: `gitlab_aws_role_arn`
+- Built-in GitLab OIDC authentication with AWS:
+  - Automatically creates a GitLab OIDC provider in AWS
+  - Generates a properly configured IAM role for GitLab
+  - Grants the role access to the EKS cluster through access entries
+  - Enables secure, token-based authentication without static credentials
 
 ### How to Use in Your Project
 
@@ -34,12 +36,15 @@ variables:
   SUBNET_IDS: '["subnet-123", "subnet-456", "subnet-789"]'
   NODE_SCALING_METHOD: "karpenter"
   ENABLE_AWS_LOAD_BALANCER_CONTROLLER: "true"
-  # IAM role to assume for permissions
-  AWS_ROLE_TO_ASSUME: "arn:aws:iam::123456789012:role/EksDeploymentRole"
+  
+  # GitLab ID variables (used for OIDC trust configuration)
+  # These are automatically provided by GitLab runners
+  # CI_JOB_JWT_V2: ${CI_JOB_JWT_V2}  # This gets injected automatically
+  
   # Add other configuration options as needed
 ```
 
-3. Ensure your GitLab runner has permissions to assume the specified IAM role
+3. No additional AWS credentials are needed - the OIDC integration handles authentication securely
 4. Run the pipeline to deploy your EKS cluster
 
 For detailed instructions, see our [GitLab CI/CD Guide](./docs/gitlab-ci-guide.md).
@@ -54,23 +59,30 @@ This solution implements a hybrid deployment approach where:
 
 ### 1. Service Catalog Product Parameters
 - Core cluster parameters (VPC, subnets, node groups, etc.)
+- Support for custom AMIs via launch templates
 - Add-on selection dropdowns with Yes/No options
 - Sensitive GitLab token for pipeline triggering
 
-### 2. Terraform Module Structure
+### 2. Custom AMI Support
+- Use your own AMIs for EKS worker nodes
+- Automated launch template creation with proper bootstrap script
+- Support per-node-group AMI configuration
+- Properly configures custom AMIs to join the EKS cluster
+
+### 3. Terraform Module Structure
 - Main EKS cluster using `terraform-aws-modules/eks`
 - Conditional IAM role modules for each add-on (only created if selected)
 - OIDC providers for EKS and GitLab authentication
 - JSON payload generation for GitLab pipeline
 - Pipeline trigger using `null_resource` and `curl`
 
-### 3. Dynamic IAM Role Creation
+### 4. Dynamic IAM Role Creation
 - Each add-on gets its own conditional module for IAM/IRSA roles
 - Roles are created only when the add-on is selected
 - Proper OIDC provider bindings for service accounts
 - Least-privilege permissions per component
 
-### 4. GitLab Pipeline Integration
+### 5. GitLab Pipeline Integration
 - Receives structured JSON payload with cluster info and add-on selections
 - Authenticates using OIDC federation (no long-term credentials)
 - Installs only selected components using conditional job rules

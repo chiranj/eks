@@ -55,6 +55,24 @@ variable "node_group_ami_id" {
   default     = ""
 }
 
+variable "create_launch_templates_for_custom_amis" {
+  description = "Whether to create launch templates for node groups with custom AMIs"
+  type        = bool
+  default     = true
+}
+
+variable "service_ipv4_cidr" {
+  description = "Service IPv4 CIDR for the Kubernetes cluster"
+  type        = string
+  default     = "172.20.0.0/16"
+}
+
+variable "cluster_ip_family" {
+  description = "IP family for the cluster (ipv4 or ipv6)"
+  type        = string
+  default     = "ipv4"
+}
+
 variable "vpc_mode" {
   description = "Select whether to use an existing VPC or create a new one"
   type        = string
@@ -207,9 +225,40 @@ variable "gitlab_pipeline_ref" {
 }
 
 variable "gitlab_aws_role_arn" {
-  description = "IAM role ARN to be assumed by GitLab CI/CD for deploying resources"
+  description = "DEPRECATED: Use the new OIDC variables instead. IAM role ARN to be assumed by GitLab CI/CD for deploying resources (if not specified, a role will be created)"
   type        = string
-  default     = "" # Empty string means use the default AWS_ROLE_TO_ASSUME from GitLab CI/CD variables
+  default     = "" # Empty string means a role will be created
+}
+
+# GitLab OIDC Integration
+variable "create_gitlab_oidc_provider" {
+  description = "Whether to create an OIDC provider for GitLab"
+  type        = bool
+  default     = true
+}
+
+variable "gitlab_oidc_host" {
+  description = "The GitLab host for OIDC (default: gitlab.com)"
+  type        = string
+  default     = "gitlab.com"
+}
+
+variable "gitlab_oidc_thumbprint" {
+  description = "Thumbprint for the GitLab OIDC provider"
+  type        = list(string)
+  default     = ["b884161ae9de7ac8e421655af4727a5e43f1e817"]
+}
+
+variable "gitlab_oidc_ref_type" {
+  description = "The GitLab reference type (branch, tag, etc.)"
+  type        = string
+  default     = "branch"
+}
+
+variable "gitlab_oidc_role_name" {
+  description = "Name for the GitLab deployment role"
+  type        = string
+  default     = "" # Will default to GitLabDeploymentRole-<cluster_name>
 }
 
 # EKS Access Entries (v20+ authentication)

@@ -42,12 +42,17 @@ default:
     - cd ${TF_ROOT}
     - terraform --version
     - |
-      # Read gitlab_aws_role_arn from tfvars file if it exists
-      if [ -f "terraform.tfvars" ] && grep -q "gitlab_aws_role_arn" terraform.tfvars; then
-        CUSTOM_ROLE_ARN=$(grep "gitlab_aws_role_arn" terraform.tfvars | sed 's/.*= *"\(.*\)".*/\1/')
-        if [ ! -z "$CUSTOM_ROLE_ARN" ]; then
-          echo "Using custom role ARN from terraform.tfvars: $CUSTOM_ROLE_ARN"
-          ROLE_TO_ASSUME=$CUSTOM_ROLE_ARN
+      # Install AWS CLI if not already available
+      if ! [ -x "$(command -v aws)" ]; then
+        apk add --no-cache aws-cli jq
+      fi
+      
+      # Check for GitLab CI/CD output to get the role ARN if available
+      if [ -f "terraform.tfstate" ]; then
+        GITLAB_ROLE_ARN=$(terraform output -json gitlab_deployment_role_arn 2>/dev/null | jq -r '.')
+        if [ -n "$GITLAB_ROLE_ARN" ] && [ "$GITLAB_ROLE_ARN" != "null" ] && [ "$GITLAB_ROLE_ARN" != "" ]; then
+          echo "Using role ARN from Terraform output: $GITLAB_ROLE_ARN"
+          ROLE_TO_ASSUME=$GITLAB_ROLE_ARN
         else
           ROLE_TO_ASSUME=${AWS_ROLE_TO_ASSUME}
         fi
@@ -55,21 +60,31 @@ default:
         ROLE_TO_ASSUME=${AWS_ROLE_TO_ASSUME}
       fi
       
-      # Assume the specified IAM role
-      echo "Assuming role ${ROLE_TO_ASSUME}..."
+      # Use OIDC to assume the role
+      echo "Assuming role ${ROLE_TO_ASSUME} via OIDC..."
       
-      # Install AWS CLI if not already available
-      if ! [ -x "$(command -v aws)" ]; then
-        apk add --no-cache aws-cli
-      fi
+      # Configure AWS CLI to use OIDC web identity
+      export AWS_ROLE_ARN=$ROLE_TO_ASSUME
+      export AWS_WEB_IDENTITY_TOKEN_FILE=/tmp/web_identity_token
       
-      # Get temporary credentials by assuming the role
-      CREDENTIALS=$(aws sts assume-role --role-arn ${ROLE_TO_ASSUME} --role-session-name gitlab-ci-${CI_JOB_ID} --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)
+      # Get the GitLab OIDC token and save it to the file
+      echo "$CI_JOB_JWT_V2" > $AWS_WEB_IDENTITY_TOKEN_FILE
       
-      # Set AWS credentials as environment variables
-      export AWS_ACCESS_KEY_ID=$(echo $CREDENTIALS | cut -d' ' -f1)
-      export AWS_SECRET_ACCESS_KEY=$(echo $CREDENTIALS | cut -d' ' -f2)
-      export AWS_SESSION_TOKEN=$(echo $CREDENTIALS | cut -d' ' -f3)
+      # Get caller identity to verify authentication worked
+      aws sts get-caller-identity || {
+        # Fallback to traditional role assumption if OIDC fails
+        echo "OIDC authentication failed, falling back to traditional role assumption..."
+        CREDENTIALS=$(aws sts assume-role --role-arn ${ROLE_TO_ASSUME} --role-session-name gitlab-ci-${CI_JOB_ID} --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)
+        
+        # Set AWS credentials as environment variables
+        export AWS_ACCESS_KEY_ID=$(echo $CREDENTIALS | cut -d' ' -f1)
+        export AWS_SECRET_ACCESS_KEY=$(echo $CREDENTIALS | cut -d' ' -f2)
+        export AWS_SESSION_TOKEN=$(echo $CREDENTIALS | cut -d' ' -f3)
+      }
+      
+      # Verify authentication
+      echo "Successfully authenticated. AWS identity:"
+      aws sts get-caller-identity
       
       echo "Successfully assumed role. AWS identity:"
       aws sts get-caller-identity

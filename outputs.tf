@@ -106,6 +106,11 @@ output "gitlab_integration_status" {
   value       = var.trigger_gitlab_pipeline ? "enabled" : "disabled"
 }
 
+output "gitlab_deployment_role_arn" {
+  description = "ARN of the GitLab deployment role that has access to the EKS cluster"
+  value       = local.gitlab_role_arn
+}
+
 # Individual IAM role ARN outputs for easy access
 output "aws_load_balancer_controller_role_arn" {
   description = "ARN of the IAM role for AWS Load Balancer Controller"

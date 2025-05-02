@@ -78,21 +78,48 @@ The pipeline automatically:
 The pipeline uses AWS role assumption for permissions:
 
 1. **How it works**:
-   - Your GitLab runner uses its instance role to assume the role specified in `AWS_ROLE_TO_ASSUME`
+   - Your GitLab pipeline uses OIDC to assume an AWS IAM role
    - All AWS operations are performed using the permissions of the assumed role
+   - The same role is automatically given access to the Kubernetes cluster
    - This follows the least privilege principle
 
-2. **Setting up your role**:
-   - Create a custom IAM role in your AWS account with the necessary permissions
-   - Add a trust relationship allowing your GitLab runner's role/instance profile to assume it
-   - Specify this role ARN in one of two ways:
-     - Set as `AWS_ROLE_TO_ASSUME` in your GitLab CI/CD variables (recommended)
-     - Set as `gitlab_aws_role_arn` in your terraform.tfvars file
+2. **Two ways to configure the role**:
+
+   #### Option 1: Let the module create everything (recommended)
+   
+   - Set these parameters in your terraform.tfvars:
+     ```hcl
+     create_gitlab_oidc_provider = true
+     gitlab_oidc_host = "gitlab.com"  
+     gitlab_oidc_ref_type = "branch"      # or "tag"
+     # gitlab_oidc_role_name = "MyGitLabRole"  # Optional
+     ```
+   - The module will:
+     - Create the OIDC provider for GitLab in your AWS account
+     - Create an IAM role with the necessary permissions
+     - Configure the trust relationship for GitLab
+     - Grant this role access to the EKS cluster
+   - The role ARN will be available as an output for your pipeline configuration
+   
+   #### Option 2: Use your own existing role
+   
+   - Create a custom IAM role with the necessary permissions
+   - Configure the trust relationship for GitLab OIDC
+   - Specify the role ARN in your terraform.tfvars:
+     ```hcl
+     gitlab_aws_role_arn = "arn:aws:iam::123456789012:role/MyCustomDeploymentRole"
+     ```
+   - The module will grant this role access to the EKS cluster
 
 3. **Required permissions**:
    - The role must have permissions to create all the AWS resources needed for your selected add-ons
    - At minimum: EKS, IAM, EC2, and VPC permissions
    - Additional permissions based on which add-ons you enable
+   
+4. **How the role accesses Kubernetes**:
+   - The module automatically adds the GitLab role to the EKS cluster's access entries
+   - This grants it admin permissions to manage Kubernetes resources
+   - The GitLab pipeline can then use kubectl commands through AWS EKS authentication
 
 ### Option 2: Use terraform.tfvars
 

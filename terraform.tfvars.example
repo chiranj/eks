@@ -25,8 +25,14 @@ eks_managed_node_groups = {
       Environment = "prod"
       Role        = "general"
     }
-    # Uncomment to override the default EKS-optimized AMI for this specific node group
-    # ami_id = "ami-0123456789abcdef0"
+    # Custom AMI for this specific node group - will use launch template
+    ami_id = "ami-0123456789abcdef0"
+    
+    # Optional: Additional bootstrap arguments for custom AMI
+    # bootstrap_extra_args = "--use-max-pods false"
+    
+    # Optional: Additional kubelet arguments
+    # kubelet_extra_args = "--node-labels=node.kubernetes.io/workload-type=cpu"
     
     # EKS 1.29+ supports node update configuration to minimize disruption
     # update_config = {
@@ -38,10 +44,32 @@ eks_managed_node_groups = {
     #   enabled = true
     # }
   }
+  
+  # Example of a second node group with different custom AMI
+  special = {
+    name = "special-node-group"
+    instance_types = ["c5.large"]
+    capacity_type  = "ON_DEMAND"
+    min_size     = 1
+    max_size     = 3
+    desired_size = 1
+    labels = {
+      Environment = "prod"
+      Role        = "special"
+    }
+    ami_id = "ami-0987654321fedcba0"  # Different custom AMI
+  }
 }
 
 # Optional: Custom AMI ID for all node groups (can be overridden per node group)
-# node_group_ami_id = "ami-0123456789abcdef0"
+node_group_ami_id = "ami-0123456789abcdef0"
+
+# Launch template configuration for custom AMIs
+create_launch_templates_for_custom_amis = true
+
+# Cluster networking configuration
+service_ipv4_cidr = "172.20.0.0/16"  # Kubernetes service CIDR
+cluster_ip_family = "ipv4"           # IP family (ipv4 or ipv6)
 
 # Access configuration - new in EKS module v20 (Optional)
 # eks_access_entries = {
@@ -79,10 +107,20 @@ external_dns_existing_hosted_zone_id = "Z1234567890ABCDEFGHIJK"  # Required if e
 external_dns_domain                 = "example.com"  # Required if external_dns_hosted_zone_source is "create"
 
 # GitLab integration (for Kubernetes components installation)
-trigger_gitlab_pipeline = true
-gitlab_project_id       = "12345678"  # GitLab project ID for pipeline triggering
-gitlab_pipeline_ref     = "main"      # GitLab pipeline reference (branch/tag)
-gitlab_aws_role_arn     = "arn:aws:iam::123456789012:role/MyCustomEksDeploymentRole" # IAM role ARN to assume during deployment
+trigger_gitlab_pipeline   = true
+gitlab_project_id         = "12345678"  # GitLab project ID for pipeline triggering
+gitlab_pipeline_ref       = "main"      # GitLab pipeline reference (branch/tag)
+
+# GitLab AWS Authentication - OIDC Integration
+
+# Automatically create GitLab OIDC provider and role
+create_gitlab_oidc_provider = true
+gitlab_oidc_host            = "gitlab.com"  
+gitlab_oidc_ref_type        = "branch"      # Valid values: branch, tag
+# gitlab_oidc_role_name     = "MyGitLabDeploymentRole"  # Optional, defaults to GitLabDeploymentRole-<cluster_name>
+
+# DEPRECATED: Only use this if you have a specific need to use a pre-existing role
+# gitlab_aws_role_arn = "arn:aws:iam::123456789012:role/MyCustomEksDeploymentRole"
 
 # Tags
 tags = {
