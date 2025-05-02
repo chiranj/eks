@@ -201,3 +201,8 @@ https://prometheus-community.github.io/helm-charts
 
 AWS Secrets & Configuration Provider (AWS Secrets Manager CSI Driver)
 https://aws.github.io/secrets-store-csi-driver-provider-aws
+
+
+instance_type = lookup(each.value, "instance_types", null) != null ? lookup(each.value, "instance_types", [])[0] : null
+
+
