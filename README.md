@@ -161,3 +161,43 @@ openssl x509 -fingerprint -sha1 -noout |
 sed 's/SHA1 Fingerprint=//g' | 
 tr -d ':'
 ```
+
+
+ADOT (AWS Distro for OpenTelemetry)
+https://aws-observability.github.io/aws-otel-helm-charts
+
+AWS Load Balancer Controller
+https://aws.github.io/eks-charts
+
+cert-manager
+https://charts.jetstack.io
+
+cluster-autoscaler
+https://kubernetes.github.io/autoscaler
+
+EBS CSI Driver
+https://kubernetes-sigs.github.io/aws-ebs-csi-driver
+
+EFS CSI Driver
+https://kubernetes-sigs.github.io/aws-efs-csi-driver
+
+external-dns
+https://kubernetes-sigs.github.io/external-dns
+
+fluent-bit
+https://fluent.github.io/helm-charts
+
+karpenter
+https://charts.karpenter.sh
+
+keda
+https://kedacore.github.io/charts
+
+nginx-ingress-controller
+https://kubernetes.github.io/ingress-nginx
+
+prometheus
+https://prometheus-community.github.io/helm-charts
+
+AWS Secrets & Configuration Provider (AWS Secrets Manager CSI Driver)
+https://aws.github.io/secrets-store-csi-driver-provider-aws
