@@ -64,14 +64,21 @@ data "aws_iam_policy_document" "assume_role_policy" {
 resource "aws_iam_role" "gitlab_deployment_role" {
   name               = local.role_name
   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
+  tags               = var.tags
+}
 
-  # Add managed policies
-  managed_policy_arns = concat(
-    var.managed_policy_arns,
-    var.create_eks_access_policy ? ["arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"] : []
-  )
+# Attach managed policies
+resource "aws_iam_role_policy_attachment" "managed_policies" {
+  count      = length(var.managed_policy_arns)
+  role       = aws_iam_role.gitlab_deployment_role.name
+  policy_arn = var.managed_policy_arns[count.index]
+}
 
-  tags = var.tags
+# Attach EKS cluster policy if enabled
+resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
+  count      = var.create_eks_access_policy ? 1 : 0
+  role       = aws_iam_role.gitlab_deployment_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
 # Attach custom policies if provided

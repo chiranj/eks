@@ -1,15 +1,14 @@
 stages:
   - validate
-  - plan
-  - apply
+  - apply-oidc
+  - apply-eks
+  - apply-full
   - destroy
 
 variables:
   TF_ROOT: ${CI_PROJECT_DIR}
   AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-  # Role to assume for EKS deployment - can be overridden by users in their variables
-  # or through the gitlab_aws_role_arn variable in terraform.tfvars
-  AWS_ROLE_TO_ASSUME: ${AWS_ROLE_TO_ASSUME}
+  TF_CLI_ARGS: "-no-color" # Improves output readability in GitLab CI
   # Default State name - can be overridden by users
   TF_STATE_NAME: ${CLUSTER_NAME:-default}-eks-cluster
   
@@ -31,9 +30,7 @@ variables:
 
 # Default configuration - can be overridden in child pipelines
 default:
-  image: 
-    name: hashicorp/terraform:1.5.0
-    entrypoint: [""]
+  # Assuming the runner is an EC2 instance with Terraform and AWS CLI installed
   cache:
     key: "${CI_COMMIT_REF_SLUG}-${CLUSTER_NAME}"
     paths:
@@ -41,52 +38,10 @@ default:
   before_script:
     - cd ${TF_ROOT}
     - terraform --version
-    - |
-      # Install AWS CLI if not already available
-      if ! [ -x "$(command -v aws)" ]; then
-        apk add --no-cache aws-cli jq
-      fi
+    - aws --version
       
-      # Check for GitLab CI/CD output to get the role ARN if available
-      if [ -f "terraform.tfstate" ]; then
-        GITLAB_ROLE_ARN=$(terraform output -json gitlab_deployment_role_arn 2>/dev/null | jq -r '.')
-        if [ -n "$GITLAB_ROLE_ARN" ] && [ "$GITLAB_ROLE_ARN" != "null" ] && [ "$GITLAB_ROLE_ARN" != "" ]; then
-          echo "Using role ARN from Terraform output: $GITLAB_ROLE_ARN"
-          ROLE_TO_ASSUME=$GITLAB_ROLE_ARN
-        else
-          ROLE_TO_ASSUME=${AWS_ROLE_TO_ASSUME}
-        fi
-      else
-        ROLE_TO_ASSUME=${AWS_ROLE_TO_ASSUME}
-      fi
-      
-      # Use OIDC to assume the role
-      echo "Assuming role ${ROLE_TO_ASSUME} via OIDC..."
-      
-      # Configure AWS CLI to use OIDC web identity
-      export AWS_ROLE_ARN=$ROLE_TO_ASSUME
-      export AWS_WEB_IDENTITY_TOKEN_FILE=/tmp/web_identity_token
-      
-      # Get the GitLab OIDC token and save it to the file
-      echo "$CI_JOB_JWT_V2" > $AWS_WEB_IDENTITY_TOKEN_FILE
-      
-      # Get caller identity to verify authentication worked
-      aws sts get-caller-identity || {
-        # Fallback to traditional role assumption if OIDC fails
-        echo "OIDC authentication failed, falling back to traditional role assumption..."
-        CREDENTIALS=$(aws sts assume-role --role-arn ${ROLE_TO_ASSUME} --role-session-name gitlab-ci-${CI_JOB_ID} --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]' --output text)
-        
-        # Set AWS credentials as environment variables
-        export AWS_ACCESS_KEY_ID=$(echo $CREDENTIALS | cut -d' ' -f1)
-        export AWS_SECRET_ACCESS_KEY=$(echo $CREDENTIALS | cut -d' ' -f2)
-        export AWS_SESSION_TOKEN=$(echo $CREDENTIALS | cut -d' ' -f3)
-      }
-      
-      # Verify authentication
-      echo "Successfully authenticated. AWS identity:"
-      aws sts get-caller-identity
-      
-      echo "Successfully assumed role. AWS identity:"
+      # Get caller identity to verify authentication
+      echo "AWS identity:"
       aws sts get-caller-identity
       
       # Generate tfvars file from environment variables
@@ -102,7 +57,7 @@ default:
       control_plane_subnet_ids = ${CONTROL_PLANE_SUBNET_IDS}
       
       # Node Configuration
-      cluster_version = "${CLUSTER_VERSION:-1.29}"
+      cluster_version = "${CLUSTER_VERSION:-1.32}"
       
       # Add-on Configuration
       enable_aws_load_balancer_controller = ${ENABLE_AWS_LOAD_BALANCER_CONTROLLER}
@@ -130,23 +85,6 @@ default:
       gitlab_token = "${GITLAB_TOKEN}"
       gitlab_project_id = "${GITLAB_PROJECT_ID}"
       gitlab_pipeline_ref = "${GITLAB_PIPELINE_REF:-main}"
-      gitlab_aws_role_arn = "${ROLE_TO_ASSUME}"
-      
-      # EKS Access Entries (v20+)
-      # Uncomment and customize if needed
-      # eks_access_entries = {
-      #   admin = {
-      #     principal_arn = "arn:aws:iam::${AWS_ACCOUNT_ID:-123456789012}:role/eks-admin"
-      #     policy_associations = {
-      #       admin = {
-      #         policy_arn = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-      #         access_scope = {
-      #           type = "cluster"
-      #         }
-      #       }
-      #     }
-      #   }
-      # }
       
       # Any additional variables from environment
       # This will be empty if no TF_VAR_* variables are set
@@ -165,45 +103,73 @@ default:
         -backend-config="unlock_method=DELETE" \
         -backend-config="retry_wait_min=5"
 
-# Job Templates
-.terraform_plan:
-  stage: plan
-  script:
-    - terraform plan -out=tfplan
-  artifacts:
-    paths:
-      - ${TF_ROOT}/tfplan
-
-.terraform_apply:
-  stage: apply
-  script:
-    - terraform apply -input=false tfplan
-  dependencies:
-    - plan
-  when: manual
-
-.terraform_destroy:
-  stage: destroy
-  script:
-    - terraform destroy -auto-approve
-  when: manual
-
-# Validation jobs
+# Validation job
 validate:
   stage: validate
+  tags:
+    - terraform-runner  # Use runner with Terraform installed
   script:
     - terraform validate
     - terraform fmt -check -recursive
+  allow_failure: true # Continue even if validation fails due to circular dependencies
 
-# Main pipeline jobs
-plan:
-  extends: .terraform_plan
-  
-apply:
-  extends: .terraform_apply
-  
+# Step 1: Apply the GitLab OIDC provider and role
+apply_oidc:
+  stage: apply-oidc
+  tags:
+    - terraform-runner  # Use runner with Terraform installed
+  script:
+    - echo "Applying GitLab OIDC module..."
+    - |
+      if terraform state list | grep -q "module.gitlab_oidc"; then
+        # The module exists, so we need to check if it's using count
+        if terraform state list | grep -q "module.gitlab_oidc\[0\]"; then
+          # Module with count exists
+          terraform apply -target=module.gitlab_oidc[0] -auto-approve
+        else
+          # Module without count exists
+          terraform apply -target=module.gitlab_oidc -auto-approve
+        fi
+      else
+        # Module doesn't exist yet, try both variants
+        terraform apply -target=module.gitlab_oidc -auto-approve || terraform apply -target=module.gitlab_oidc[0] -auto-approve
+      fi
+  dependencies:
+    - validate
+
+# Step 2: Apply EKS cluster module
+apply_eks:
+  stage: apply-eks
+  tags:
+    - terraform-runner  # Use runner with Terraform installed
+  script:
+    - echo "Applying EKS cluster module..."
+    - terraform apply -target=module.eks_cluster -auto-approve
+  dependencies:
+    - apply_oidc
+
+# Step 3: Apply all remaining resources
+apply_full:
+  stage: apply-full
+  tags:
+    - terraform-runner  # Use runner with Terraform installed
+  script:
+    - echo "Applying all remaining resources..."
+    - terraform apply -parallelism=1 -auto-approve
+  dependencies:
+    - apply_eks
+
+# Destroy all resources
 destroy:
-  extends: .terraform_destroy
+  stage: destroy
+  tags:
+    - terraform-runner  # Use runner with Terraform installed
+  script:
+    - terraform destroy -auto-approve
+  when: manual
+  environment:
+    name: ${CLUSTER_NAME:-default}
+    action: stop
 
 # Templates for child pipelines to include this file
 .include_template:

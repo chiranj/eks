@@ -36,13 +36,13 @@ output "eks_managed_node_groups" {
 
 output "custom_launch_templates" {
   description = "Launch templates created for node groups with custom AMIs"
-  value       = var.create_launch_templates_for_custom_amis ? {
+  value = var.create_launch_templates_for_custom_amis ? {
     for name, lt in aws_launch_template.custom_ami : name => {
-      id        = lt.id
-      arn       = lt.arn
-      name      = lt.name
-      version   = lt.latest_version
-      image_id  = lt.image_id
+      id       = lt.id
+      arn      = lt.arn
+      name     = lt.name
+      version  = lt.latest_version
+      image_id = lt.image_id
     }
   } : {}
 }

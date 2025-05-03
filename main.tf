@@ -138,7 +138,7 @@ module "eks_cluster" {
       { ami_id = var.node_group_ami_id } : {}
     )
   }
-  
+
   # Launch template configuration
   create_launch_templates_for_custom_amis = var.create_launch_templates_for_custom_amis
   service_ipv4_cidr                       = var.service_ipv4_cidr
