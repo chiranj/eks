@@ -203,6 +203,28 @@ AWS Secrets & Configuration Provider (AWS Secrets Manager CSI Driver)
 https://aws.github.io/secrets-store-csi-driver-provider-aws
 
 
-instance_type = lookup(each.value, "instance_types", null) != null ? lookup(each.value, "instance_types", [])[0] : null
+   assume_role_policy = data.aws_iam_policy_document.assume_role_policy.json
+     67    tags               = var.tags
+     68  }
+     69
+     70    # Add managed policies
+     71    managed_policy_arns = concat(
+     72      var.managed_policy_arns,
+     73      var.create_eks_access_policy ? ["arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"] : []
+     74    )
+     70  # Attach managed policies
+     71  resource "aws_iam_role_policy_attachment" "managed_policies" {
+     72    count      = length(var.managed_policy_arns)
+     73    role       = aws_iam_role.gitlab_deployment_role.name
+     74    policy_arn = var.managed_policy_arns[count.index]
+     75  }
+     76
+     77    tags = var.tags
+     77  # Attach EKS cluster policy if enabled
+     78  resource "aws_iam_role_policy_attachment" "eks_cluster_policy" {
+     79    count      = var.create_eks_access_policy ? 1 : 0
+     80    role       = aws_iam_role.gitlab_deployment_role.name
+     81    policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+     82  }
 
 
