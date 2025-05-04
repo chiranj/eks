@@ -1,6 +1,5 @@
 stages:
   - validate
-  - apply-oidc
   - apply-eks
   - apply-full
   - destroy
@@ -117,27 +116,7 @@ validate:
     - terraform fmt -check -recursive
   allow_failure: true # Continue even if validation fails due to circular dependencies
 
-# Step 1: Apply the GitLab OIDC provider and role
-apply_oidc:
-  stage: apply-oidc
-  script:
-    - echo "Applying GitLab OIDC module..."
-    - |
-      if terraform state list | grep -q "module.gitlab_oidc"; then
-        # The module exists, so we need to check if it's using count
-        if terraform state list | grep -q "module.gitlab_oidc\[0\]"; then
-          # Module with count exists
-          terraform apply -target=module.gitlab_oidc[0] -auto-approve
-        else
-          # Module without count exists
-          terraform apply -target=module.gitlab_oidc -auto-approve
-        fi
-      else
-        # Module doesn't exist yet, try both variants
-        terraform apply -target=module.gitlab_oidc -auto-approve || terraform apply -target=module.gitlab_oidc[0] -auto-approve
-      fi
-  dependencies:
-    - validate
+# OIDC provider and role stage removed - users must provide a GitLab role ARN
 
 # Step 2: Apply EKS cluster module
 apply_eks:
@@ -146,7 +125,7 @@ apply_eks:
     - echo "Applying EKS cluster module..."
     - terraform apply -target=module.eks_cluster -auto-approve
   dependencies:
-    - apply_oidc
+    - validate
 
 # Step 3: Apply all remaining resources
 apply_full:

@@ -225,40 +225,9 @@ variable "gitlab_pipeline_ref" {
 }
 
 variable "gitlab_aws_role_arn" {
-  description = "DEPRECATED: Use the new OIDC variables instead. IAM role ARN to be assumed by GitLab CI/CD for deploying resources (if not specified, a role will be created)"
+  description = "IAM role ARN to be assumed by GitLab CI/CD for deploying resources (must be provided)"
   type        = string
-  default     = "" # Empty string means a role will be created
-}
-
-# GitLab OIDC Integration
-variable "create_gitlab_oidc_provider" {
-  description = "Whether to create an OIDC provider for GitLab"
-  type        = bool
-  default     = true
-}
-
-variable "gitlab_oidc_host" {
-  description = "The GitLab host for OIDC (default: gitlab.com)"
-  type        = string
-  default     = "gitlab.com"
-}
-
-variable "gitlab_oidc_thumbprint" {
-  description = "Thumbprint for the GitLab OIDC provider"
-  type        = list(string)
-  default     = ["b884161ae9de7ac8e421655af4727a5e43f1e817"]
-}
-
-variable "gitlab_oidc_ref_type" {
-  description = "The GitLab reference type (branch, tag, etc.)"
-  type        = string
-  default     = "branch"
-}
-
-variable "gitlab_oidc_role_name" {
-  description = "Name for the GitLab deployment role"
-  type        = string
-  default     = "" # Will default to GitLabDeploymentRole-<cluster_name>
+  default     = "" # You must provide this value
 }
 
 # EKS Access Entries (v20+ authentication)

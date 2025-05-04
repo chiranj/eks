@@ -1,7 +1,7 @@
 terraform {
-  # Backend configuration will be injected by GitLab CI/CD
-  backend "http" {
-    # These values will be populated by GitLab CI
+  # Using local backend for development/testing
+  backend "local" {
+    path = "terraform.tfstate"
   }
 
   required_providers {

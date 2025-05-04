@@ -70,33 +70,13 @@ module "vpc" {
   tags = local.tags
 }
 
-# GitLab OIDC Provider and Role - only if gitlab_aws_role_arn is not provided
-module "gitlab_oidc" {
-  source = "./modules/gitlab-oidc"
-  count  = var.gitlab_aws_role_arn == "" ? 1 : 0
-
-  gitlab_host          = var.gitlab_oidc_host
-  gitlab_project_id    = var.gitlab_project_id
-  gitlab_ref_type      = var.gitlab_oidc_ref_type
-  gitlab_ref           = var.gitlab_pipeline_ref
-  cluster_name         = local.name
-  role_name            = var.gitlab_oidc_role_name
-  thumbprint_list      = var.gitlab_oidc_thumbprint
-  create_oidc_provider = var.create_gitlab_oidc_provider
-
-  # Add policies for EKS management
-  managed_policy_arns = [
-    "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-  ]
-
-  tags = local.tags
-}
+# GitLab role ARN is now expected to be provided directly
+# No longer creating GitLab OIDC provider and role automatically
 
 # Determine the GitLab role ARN to use
 locals {
-  gitlab_role_arn = var.gitlab_aws_role_arn != "" ? var.gitlab_aws_role_arn : (
-    length(module.gitlab_oidc) > 0 ? module.gitlab_oidc[0].role_arn : ""
-  )
+  # Now we just use the provided gitlab_aws_role_arn
+  gitlab_role_arn = var.gitlab_aws_role_arn
 
   # Add GitLab role to access entries if it exists
   eks_access_entries_with_gitlab = local.gitlab_role_arn != "" ? merge(

@@ -83,25 +83,9 @@ The pipeline uses AWS role assumption for permissions:
    - The same role is automatically given access to the Kubernetes cluster
    - This follows the least privilege principle
 
-2. **Two ways to configure the role**:
+2. **Role configuration**:
 
-   #### Option 1: Let the module create everything (recommended)
-   
-   - Set these parameters in your terraform.tfvars:
-     ```hcl
-     create_gitlab_oidc_provider = true
-     gitlab_oidc_host = "gitlab.com"  
-     gitlab_oidc_ref_type = "branch"      # or "tag"
-     # gitlab_oidc_role_name = "MyGitLabRole"  # Optional
-     ```
-   - The module will:
-     - Create the OIDC provider for GitLab in your AWS account
-     - Create an IAM role with the necessary permissions
-     - Configure the trust relationship for GitLab
-     - Grant this role access to the EKS cluster
-   - The role ARN will be available as an output for your pipeline configuration
-   
-   #### Option 2: Use your own existing role
+   #### Use your own existing role
    
    - Create a custom IAM role with the necessary permissions
    - Configure the trust relationship for GitLab OIDC

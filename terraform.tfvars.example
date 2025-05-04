@@ -111,16 +111,9 @@ trigger_gitlab_pipeline   = true
 gitlab_project_id         = "12345678"  # GitLab project ID for pipeline triggering
 gitlab_pipeline_ref       = "main"      # GitLab pipeline reference (branch/tag)
 
-# GitLab AWS Authentication - OIDC Integration
-
-# Automatically create GitLab OIDC provider and role
-create_gitlab_oidc_provider = true
-gitlab_oidc_host            = "gitlab.com"  
-gitlab_oidc_ref_type        = "branch"      # Valid values: branch, tag
-# gitlab_oidc_role_name     = "MyGitLabDeploymentRole"  # Optional, defaults to GitLabDeploymentRole-<cluster_name>
-
-# DEPRECATED: Only use this if you have a specific need to use a pre-existing role
-# gitlab_aws_role_arn = "arn:aws:iam::123456789012:role/MyCustomEksDeploymentRole"
+# GitLab AWS Authentication
+# You must provide the GitLab role ARN for GitLab integration
+gitlab_aws_role_arn = "arn:aws:iam::123456789012:role/MyGitLabDeploymentRole"
 
 # Tags
 tags = {
