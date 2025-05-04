@@ -48,10 +48,10 @@ module "eks" {
   cluster_version = "1.29"
 
   # VPC Settings - using existing VPC from module 
-  vpc_mode                      = "existing"
-  vpc_id                        = module.vpc.vpc_id
-  subnet_ids                    = module.vpc.private_subnets
-  control_plane_subnet_ids      = module.vpc.intra_subnets
+  vpc_mode                       = "existing"
+  vpc_id                         = module.vpc.vpc_id
+  subnet_ids                     = module.vpc.private_subnets
+  control_plane_subnet_ids       = module.vpc.intra_subnets
   cluster_endpoint_public_access = true
 
   # EKS Managed Node Group
@@ -77,19 +77,21 @@ module "eks" {
 
   # Enable add-ons
   enable_aws_load_balancer_controller = true
-  
+
   # Node scaling method - use Karpenter instead of Cluster Autoscaler
   node_scaling_method = "karpenter"
   enable_keda         = true
-  
+
   enable_external_dns = false
   enable_prometheus   = false
 
   # GitLab integration
   trigger_gitlab_pipeline = true
   # Token is embedded in the module, no need to provide it here
-  gitlab_project_id      = "12345678"  # Using the default project ID
-  gitlab_pipeline_ref    = "main"
+  gitlab_project_id   = "12345678" # Using the default project ID
+  gitlab_pipeline_ref = "main"
+  # Optional custom IAM role ARN for GitLab CI/CD deployment
+  gitlab_aws_role_arn = var.gitlab_aws_role_arn
 
   tags = local.tags
 }
