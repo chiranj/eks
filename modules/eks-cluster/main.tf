@@ -45,6 +45,9 @@ locals {
         # Connect to the launch template we'll create
         launch_template_name    = aws_launch_template.custom_ami[name].name
         launch_template_version = aws_launch_template.custom_ami[name].latest_version
+        
+        # Do NOT set ami_type here - the AWS provider will handle it correctly
+        # The EKS managed node group module sets ami_type = null when ami_id is set
       } : {},
       
       # If using pre-created IAM role, ensure we pass through the IAM role config
@@ -176,8 +179,7 @@ module "eks" {
       # Fix for iam_role_additional_policies type mismatch
       iam_role_additional_policies = {},
       
-      # Ensure EKS has permission to use launch templates and AMIs
-      ami_type = "CUSTOM",  # This tells EKS we're using custom AMIs
+      # Do NOT set ami_type at all - let the AWS provider handle it based on the AMI ID
       
       # Add block device mappings to handle AMI permissions
       block_device_mappings = {

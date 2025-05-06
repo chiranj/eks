@@ -78,10 +78,20 @@ eks_managed_node_groups = {
 node_group_ami_id = "ami-0123456789abcdef0"
 
 # Launch template configuration options
-# Option 1: Create launch templates in Terraform (warning: may cause permission issues)
+# IMPORTANT PERMISSIONS NOTE:
+# If using custom AMIs with launch templates, your EKS cluster role (IAM role) MUST have:
+# 1. ec2:RunInstances permission
+# 2. ec2:CreateLaunchTemplate permission  
+# 3. ec2:DescribeLaunchTemplates permission
+# 4. ec2:DescribeLaunchTemplateVersions permission
+# 5. Permission to use the specified AMI (ec2:DescribeImages)
+#
+# Make sure your pre-created cluster_iam_role_arn has these permissions!
+
+# Option 1: Create launch templates within Terraform
 create_launch_templates_for_custom_amis = true
 
-# Option 2: Use existing launch templates (created outside Terraform)
+# Option 2: Use pre-created launch templates
 use_existing_launch_templates = false
 launch_template_arns = {
   # Map node group names to existing launch template ARNs
