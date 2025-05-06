@@ -7,3 +7,16 @@ variable "gitlab_aws_role_arn" {
   type        = string
   default     = "" # Empty string means use the default AWS_ROLE_TO_ASSUME from GitLab CI/CD variables
 }
+
+# Custom AMI settings
+variable "node_group_ami_id" {
+  description = "Custom AMI ID for EKS worker nodes (default for all node groups)"
+  type        = string
+  default     = ""
+}
+
+variable "create_launch_templates_for_custom_amis" {
+  description = "Whether to create launch templates for node groups with custom AMIs"
+  type        = bool
+  default     = true
+}

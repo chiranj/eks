@@ -118,7 +118,7 @@ output "gitlab_integration_env_file_path" {
 
 output "gitlab_integration_json_file_path" {
   description = "Path to the JSON configuration file for GitLab parent-child pipeline integration"
-  value       = var.trigger_gitlab_pipeline ? try(module.gitlab_integration[0].json_file_path, "") : "" 
+  value       = var.trigger_gitlab_pipeline ? try(module.gitlab_integration[0].json_file_path, "") : ""
 }
 
 # Individual IAM role ARN outputs for easy access

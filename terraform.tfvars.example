@@ -65,6 +65,7 @@ eks_managed_node_groups = {
 node_group_ami_id = "ami-0123456789abcdef0"
 
 # Launch template configuration for custom AMIs
+# Now fixed to properly handle type inconsistency
 create_launch_templates_for_custom_amis = true
 
 # Cluster networking configuration

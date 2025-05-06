@@ -10,35 +10,29 @@ locals {
   # DNS cluster IP based on service CIDR
   dns_cluster_ip = cidrhost(var.service_ipv4_cidr, 10)
 
-  # Identify node groups that need custom AMIs via launch templates
+  # First identify which node groups have custom AMIs
   node_groups_with_custom_ami = {
     for name, group in var.eks_managed_node_groups :
     name => group if lookup(group, "ami_id", "") != ""
   }
 
-  # Create node groups without launch templates (default EKS AMI)
-  node_groups_without_custom_ami = {
-    for name, group in var.eks_managed_node_groups :
-    name => {
-      for k, v in group : k => v if k != "ami_id"
-    } if lookup(group, "ami_id", "") == ""
-  }
+  # Prepare node groups configuration based on whether we're using launch templates
+  # This handles conditional type safety by consistently preparing node group configs
+  eks_managed_node_group_configs = {
+    for name, group in var.eks_managed_node_groups : name => merge(
+      # Base configuration that always applies
+      {
+        for k, v in group : k => v if k != "ami_id"
+      },
 
-  # Final node groups map - replaces ami_id with launch_template for groups with custom AMI
-  eks_managed_node_groups = var.create_launch_templates_for_custom_amis ? merge(
-    local.node_groups_without_custom_ami,
-    {
-      for name, group in local.node_groups_with_custom_ami : name => merge(
-        {
-          for k, v in group : k => v if k != "ami_id"
-        },
-        {
-          launch_template_id      = aws_launch_template.custom_ami[name].id
-          launch_template_version = aws_launch_template.custom_ami[name].latest_version
-        }
-      )
-    }
-  ) : var.eks_managed_node_groups
+      # Only include the launch template attributes when we're using custom AMIs
+      var.create_launch_templates_for_custom_amis && lookup(group, "ami_id", "") != "" ? {
+        # Connect to the launch template we'll create
+        launch_template_name    = aws_launch_template.custom_ami[name].name
+        launch_template_version = aws_launch_template.custom_ami[name].latest_version
+      } : {}
+    )
+  }
 }
 
 # Create launch templates for node groups with custom AMIs
@@ -102,8 +96,8 @@ module "eks" {
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
 
-  # EKS Managed Node Group(s) - Using our processed node groups
-  eks_managed_node_groups = local.eks_managed_node_groups
+  # Use the prepared node group configs with proper launch template handling
+  eks_managed_node_groups = local.eks_managed_node_group_configs
 
   # Cluster IP family
   cluster_ip_family = var.cluster_ip_family

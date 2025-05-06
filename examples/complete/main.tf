@@ -54,7 +54,7 @@ module "eks" {
   control_plane_subnet_ids       = module.vpc.intra_subnets
   cluster_endpoint_public_access = true
 
-  # EKS Managed Node Group
+  # EKS Managed Node Groups
   eks_managed_node_groups = {
     default = {
       name = "default-node-group"
@@ -72,6 +72,33 @@ module "eks" {
       }
 
       tags = local.tags
+    },
+    # Example of a node group with custom AMI
+    custom-ami = {
+      name = "custom-ami-node-group"
+
+      instance_types = ["t3.medium"]
+      capacity_type  = "ON_DEMAND"
+
+      min_size     = 1
+      max_size     = 3
+      desired_size = 1
+
+      # Custom AMI ID - will use launch template with our fixed implementation
+      ami_id = "ami-0123456789abcdef0"
+
+      # Optional bootstrap arguments for the custom AMI
+      bootstrap_extra_args = "--use-max-pods false"
+
+      # Optional kubelet arguments
+      kubelet_extra_args = "--node-labels=node.kubernetes.io/workload-type=cpu"
+
+      labels = {
+        Environment = "dev"
+        Role        = "custom"
+      }
+
+      tags = local.tags
     }
   }
 
@@ -81,6 +108,10 @@ module "eks" {
   # Node scaling method - use Karpenter instead of Cluster Autoscaler
   node_scaling_method = "karpenter"
   enable_keda         = true
+
+  # Launch template configuration for custom AMIs
+  node_group_ami_id                       = var.node_group_ami_id
+  create_launch_templates_for_custom_amis = var.create_launch_templates_for_custom_amis
 
   enable_external_dns = false
   enable_prometheus   = false

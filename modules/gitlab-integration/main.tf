@@ -30,7 +30,7 @@ locals {
       "AWS_REGION=${data.aws_region.current.name}",
       "AWS_ROLE_ARN=${var.aws_role_arn}"
     ],
-    [for addon_name, config in var.addons_config : 
+    [for addon_name, config in var.addons_config :
       config.enabled ? "${upper(replace(addon_name, "-", "_"))}_ROLE_ARN=${config.iam_role_arn}" : ""
     ]
   )
