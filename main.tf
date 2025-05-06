@@ -127,6 +127,8 @@ module "eks_cluster" {
 
   # Launch template configuration
   create_launch_templates_for_custom_amis = var.create_launch_templates_for_custom_amis
+  use_existing_launch_templates           = var.use_existing_launch_templates
+  launch_template_arns                    = var.launch_template_arns
   service_ipv4_cidr                       = var.service_ipv4_cidr
   cluster_ip_family                       = var.cluster_ip_family
 

@@ -85,6 +85,18 @@ variable "create_launch_templates_for_custom_amis" {
   default     = true
 }
 
+variable "use_existing_launch_templates" {
+  description = "Whether to use pre-created launch templates instead of creating new ones"
+  type        = bool
+  default     = false
+}
+
+variable "launch_template_arns" {
+  description = "Map of node group names to existing launch template ARNs to use"
+  type        = map(string)
+  default     = {}
+}
+
 variable "service_ipv4_cidr" {
   description = "Service IPv4 CIDR for the Kubernetes cluster"
   type        = string

@@ -77,9 +77,17 @@ eks_managed_node_groups = {
 # Optional: Custom AMI ID for all node groups (can be overridden per node group)
 node_group_ami_id = "ami-0123456789abcdef0"
 
-# Launch template configuration for custom AMIs
-# Now fixed to properly handle type inconsistency
+# Launch template configuration options
+# Option 1: Create launch templates in Terraform (warning: may cause permission issues)
 create_launch_templates_for_custom_amis = true
+
+# Option 2: Use existing launch templates (created outside Terraform)
+use_existing_launch_templates = false
+launch_template_arns = {
+  # Map node group names to existing launch template ARNs
+  # default = "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-0123456789abcdef"
+  # special = "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-fedcba9876543210"
+}
 
 # Cluster networking configuration
 service_ipv4_cidr = "172.20.0.0/16"  # Kubernetes service CIDR
