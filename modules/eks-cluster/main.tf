@@ -96,6 +96,13 @@ module "eks" {
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
 
+  # IAM role configuration for cluster only
+  create_iam_role                 = var.create_cluster_iam_role
+  iam_role_arn                    = var.create_cluster_iam_role ? null : var.cluster_iam_role_arn
+  
+  # Always create node roles
+  create_node_security_group      = true
+  
   # Use the prepared node group configs with proper launch template handling
   eks_managed_node_groups = local.eks_managed_node_group_configs
 
