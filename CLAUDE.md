@@ -22,59 +22,118 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Keep modules focused and composable
 - Security: Implement least privilege IAM permissions and use OIDC for authentication
 
-## Project Scope
+## New Project change Instructions
 
-EKS Service Catalog Terraform Architecture Summary
-Overview
-Create an AWS Service Catalog product that deploys EKS clusters with optional add-ons, using a hybrid deployment approach where Terraform provisions AWS infrastructure and GitLab CI/CD installs Kubernetes components.
-Key Components
-1. Service Catalog Product Parameters
 
-Core cluster parameters (VPC, subnets, node groups, etc.)
-Add-on selection dropdowns with Yes/No options
-Sensitive GitLab token for pipeline triggering
 
-2. Terraform Module Structure
+Instead of making API calls from Terraform to trigger external pipelines to install helm charts,  expose your Terraform outputs as environment variables that can be used in subsequent pipeline stages or jobs: We are going to use Parent-Child Pipelines . Parent pipeline to execute terraform code and child ppipeline to install helm charts.
+Best Practice: Hybrid Approach
+I recommend a hybrid approach using both GitLab's dotenv artifacts and JSON files:
 
-Main EKS cluster using terraform-aws-modules/eks
-Conditional IAM role modules for each add-on (only created if selected)
-OIDC providers for EKS and GitLab authentication
-JSON payload generation for GitLab pipeline
-Pipeline trigger using null_resource and curl
+Basic variables via dotenv for simple environment variables
+Structured data via JSON for complex resources like ARNs
 
-3. Dynamic IAM Role Creation
+Step 1: Update Terraform to Export Variables
 
-Each add-on gets its own conditional module for IAM/IRSA roles
-Roles are created only when the add-on is selected
-Proper OIDC provider bindings for service accounts
-Least-privilege permissions per component
+```hcl
+# In your Terraform code
+locals {
+  addon_resources = {
+    external_dns_role_arn    = aws_iam_role.external_dns.arn
+    cert_manager_role_arn    = aws_iam_role.cert_manager.arn
+    opencost_role_arn        = aws_iam_role.opencost.arn
+    cluster_name             = aws_eks_cluster.this.name
+    aws_region               = var.region
+    aws_account_id           = data.aws_caller_identity.current.account_id
+  }
+}
 
-4. GitLab Pipeline Integration
+# Export as JSON file (for complex data)
+resource "local_file" "addon_resources_json" {
+  content  = jsonencode(local.addon_resources)
+  filename = "${path.module}/terraform-outputs.json"
+}
 
-Receives structured JSON payload with cluster info and add-on selections
-Authenticates using OIDC federation (no long-term credentials)
-Installs only selected components using conditional job rules
-Uses local Helm charts with custom values
+# Export as dotenv file (for environment variables)
+resource "local_file" "addon_resources_env" {
+  content  = join("\n", [
+    "CLUSTER_NAME=${aws_eks_cluster.this.name}",
+    "EXTERNAL_DNS_ROLE_ARN=${aws_iam_role.external_dns.arn}",
+    "CERT_MANAGER_ROLE_ARN=${aws_iam_role.cert_manager.arn}",
+    "OPENCOST_ROLE_ARN=${aws_iam_role.opencost.arn}",
+    "AWS_REGION=${var.region}",
+    "AWS_ACCOUNT_ID=${data.aws_caller_identity.current.account_id}"
+  ])
+  filename = "${path.module}/terraform-outputs.env"
+}
+```
+Step 2: Configure GitLab CI to Use These Files. Child pipeline section in main gitlab-ci.yml
 
-Extensibility Pattern for New Add-ons
+```hcl
+helm-charts-deployment:
+  stage: helm-charts
+  needs:
+    - terraform-apply
+  # Include the helm charts pipeline from Project B
+  include:
+    - project: 'your-group/helm-charts-project'
+      file: '.gitlab-ci.helm-charts.yml'
+      ref: main
+  # All variables from terraform-outputs.env are automatically available
+  # to the included jobs from Project B
+```
 
-Add new parameter in Service Catalog template
-Create conditional IAM module for the add-on
-Include add-on data in GitLab payload
-Add corresponding Helm chart and pipeline job
+Step 3. 
+Create .gitlab-ci.helm-charts.yml yaml file with following changes but for all add-on in the modules section
 
-Security Considerations
+# This file lives in Project B but runs in Project A's context
+stages:
+  - prerequisites
+  - dns
+  - certs
+  - monitoring
 
-Sensitive GitLab token stored in Service Catalog template
-OIDC-based authentication for all operations
-IAM roles with minimal required permissions
-No cross-account access required
+# These variables come from Project A's terraform-outputs.env
+variables:
+  KUBECONFIG: ./kubeconfig
 
-Output Structure
-All Terraform outputs are formatted as JSON and sent to GitLab, including:
+setup-kubeconfig:
+  stage: prerequisites
+  script:
+    - aws eks update-kubeconfig --name $CLUSTER_NAME --region $AWS_REGION --kubeconfig ./kubeconfig
+  artifacts:
+    paths:
+      - ./kubeconfig
 
-Cluster details (name, endpoint, OIDC provider)
-Add-on selections and corresponding IAM role ARNs
-Authentication details for GitLab OIDC
+external-dns-install:
+  stage: dns
+  needs:
+    - setup-kubeconfig
+  script:
+    - echo "Installing external-dns with role ARN: $EXTERNAL_DNS_ROLE_ARN"
+    - helm upgrade --install external-dns external-dns/external-dns \
+        --namespace external-dns \
+        --create-namespace \
+        --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=$EXTERNAL_DNS_ROLE_ARN
 
-This architecture provides a scalable, secure, and self-service EKS deployment mechanism that respects account boundaries while enabling comprehensive cluster configuration.
+cert-manager-install:
+  stage: certs
+  needs:
+    - setup-kubeconfig
+  script:
+    - echo "Installing cert-manager with role ARN: $CERT_MANAGER_ROLE_ARN"
+    - helm upgrade --install cert-manager jetstack/cert-manager \
+        --namespace cert-manager \
+        --create-namespace \
+        --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=$CERT_MANAGER_ROLE_ARN
+
+opencost-install:
+  stage: monitoring
+  needs:
+    - setup-kubeconfig
+  script:
+    - echo "Installing opencost with role ARN: $OPENCOST_ROLE_ARN"
+    - helm upgrade --install opencost opencost/opencost \
+        --namespace opencost \
+        --create-namespace \
+        --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=$OPENCOST_ROLE_ARN

@@ -107,9 +107,7 @@ external_dns_existing_hosted_zone_id = "Z1234567890ABCDEFGHIJK"  # Required if e
 external_dns_domain                 = "example.com"  # Required if external_dns_hosted_zone_source is "create"
 
 # GitLab integration (for Kubernetes components installation)
-trigger_gitlab_pipeline   = true
-gitlab_project_id         = "12345678"  # GitLab project ID for pipeline triggering
-gitlab_pipeline_ref       = "main"      # GitLab pipeline reference (branch/tag)
+trigger_gitlab_pipeline   = true   # Set to true to enable GitLab CI/CD integration for Helm charts
 
 # GitLab AWS Authentication
 # You must provide the GitLab role ARN for GitLab integration

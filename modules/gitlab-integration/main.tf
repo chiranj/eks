@@ -1,11 +1,12 @@
 /**
  * # GitLab Integration Module
  *
- * This module handles the integration with GitLab CI/CD pipelines for installing Kubernetes components.
+ * This module exports Terraform outputs as files that can be used by GitLab CI/CD parent-child pipelines
+ * for installing Kubernetes components.
  */
 
 locals {
-  payload = jsonencode({
+  addon_data = {
     cluster = {
       name                  = var.cluster_name
       endpoint              = var.cluster_endpoint
@@ -17,24 +18,34 @@ locals {
     deployment = {
       aws_role_arn = var.aws_role_arn != "" ? var.aws_role_arn : null
     }
-  })
+  }
+
+  # Generate environment variables for simple key-value pairs
+  env_vars = concat(
+    [
+      "CLUSTER_NAME=${var.cluster_name}",
+      "CLUSTER_ENDPOINT=${var.cluster_endpoint}",
+      "CLUSTER_CA_DATA=${var.cluster_ca_data}",
+      "OIDC_PROVIDER_ARN=${var.oidc_provider_arn}",
+      "AWS_REGION=${data.aws_region.current.name}",
+      "AWS_ROLE_ARN=${var.aws_role_arn}"
+    ],
+    [for addon_name, config in var.addons_config : 
+      config.enabled ? "${upper(replace(addon_name, "-", "_"))}_ROLE_ARN=${config.iam_role_arn}" : ""
+    ]
+  )
 }
 
 data "aws_region" "current" {}
 
-resource "null_resource" "trigger_gitlab_pipeline" {
-  triggers = {
-    cluster_name = var.cluster_name
-    addons       = jsonencode(var.addons_config)
-  }
+# Export as JSON file (for complex data)
+resource "local_file" "addon_resources_json" {
+  content  = jsonencode(local.addon_data)
+  filename = "${path.module}/terraform-outputs.json"
+}
 
-  provisioner "local-exec" {
-    command = <<-EOT
-      curl --request POST \
-        --url "https://gitlab.com/api/v4/projects/${var.gitlab_project_id}/trigger/pipeline" \
-        --form "token=${var.gitlab_token}" \
-        --form "ref=${var.gitlab_pipeline_ref}" \
-        --form "variables[CLUSTER_CONFIG]=${local.payload}"
-    EOT
-  }
+# Export as dotenv file (for environment variables)
+resource "local_file" "addon_resources_env" {
+  content  = join("\n", [for line in local.env_vars : line if line != ""])
+  filename = "${path.module}/terraform-outputs.env"
 }

@@ -2,6 +2,7 @@ stages:
   - validate
   - apply-eks
   - apply-full
+  - helm-charts
   - destroy
 
 variables:
@@ -133,8 +134,48 @@ apply_full:
   script:
     - echo "Applying all remaining resources..."
     - terraform apply -parallelism=1 -auto-approve
+    - |
+      # Copy terraform-outputs.env to the artifacts directory
+      ENV_FILE=$(terraform output -raw gitlab_integration_env_file_path 2>/dev/null || echo "")
+      JSON_FILE=$(terraform output -raw gitlab_integration_json_file_path 2>/dev/null || echo "")
+      
+      if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
+        cp "$ENV_FILE" terraform-outputs.env
+        echo "Copied $ENV_FILE to terraform-outputs.env"
+        cat terraform-outputs.env
+      else
+        echo "Warning: terraform-outputs.env file not found or output not available"
+      fi
+      
+      if [ -n "$JSON_FILE" ] && [ -f "$JSON_FILE" ]; then
+        cp "$JSON_FILE" terraform-outputs.json
+        echo "Copied $JSON_FILE to terraform-outputs.json"
+      else
+        echo "Warning: terraform-outputs.json file not found or output not available"
+      fi
   dependencies:
     - apply_eks
+  artifacts:
+    paths:
+      - terraform-outputs.env
+      - terraform-outputs.json
+    reports:
+      dotenv: terraform-outputs.env
+
+# Helm charts installation using child pipeline
+helm_charts:
+  stage: helm-charts
+  needs:
+    - apply_full
+  trigger:
+    include: 
+      - local: '.gitlab-ci.helm-charts.yml'
+    strategy: depend
+  variables:
+    # Pass the cluster name and other key variables to the child pipeline
+    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
+    # All other variables from terraform-outputs.env will be available automatically
+    # because of the dotenv artifact in the apply_full job
 
 # Destroy all resources
 destroy:

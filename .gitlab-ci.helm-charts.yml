@@ -1,0 +1,285 @@
+# This file defines the child pipeline for Helm chart installations from custom repository
+# It will be included by the parent pipeline after Terraform has created the infrastructure
+
+stages:
+  - prerequisites
+  - clone
+  - storage
+  - networking
+  - observability
+  - scaling
+  - security
+
+# Shared configuration
+.helm_config: &helm_config
+  # These variables are populated from the parent pipeline (terraform-outputs.env)
+  variables:
+    KUBECONFIG: ./kubeconfig
+    # Default values that can be overridden
+    HELM_CHARTS_REPO: ${HELM_CHARTS_REPO:-"https://gitlab.com/your-organization/eks-helm-charts.git"}
+    HELM_CHARTS_REF: ${HELM_CHARTS_REF:-"main"}
+    HELM_CHARTS_DIR: ./eks-helm-charts
+
+# Setup kubectl configuration for all subsequent jobs
+setup-kubeconfig:
+  <<: *helm_config
+  stage: prerequisites
+  image: amazon/aws-cli:latest
+  script:
+    - echo "Setting up kubectl configuration for cluster $CLUSTER_NAME"
+    - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    - chmod +x kubectl && mv kubectl /usr/local/bin/
+    - aws eks update-kubeconfig --name $CLUSTER_NAME --region $AWS_REGION --kubeconfig ./kubeconfig
+    - kubectl get nodes -o wide
+  artifacts:
+    paths:
+      - ./kubeconfig
+    expire_in: 1 day
+
+# Clone the Helm charts repository
+clone-helm-charts:
+  <<: *helm_config
+  stage: clone
+  image: alpine:latest
+  needs:
+    - setup-kubeconfig
+  script:
+    - echo "Cloning Helm charts repository: $HELM_CHARTS_REPO (ref: $HELM_CHARTS_REF)"
+    - apk add --no-cache git
+    - git clone $HELM_CHARTS_REPO $HELM_CHARTS_DIR
+    - cd $HELM_CHARTS_DIR
+    - git checkout $HELM_CHARTS_REF
+    - echo "Available Helm charts:"
+    - find . -name "Chart.yaml" | sort
+  artifacts:
+    paths:
+      - $HELM_CHARTS_DIR
+    expire_in: 1 day
+
+# Base job template for Helm chart installation
+.helm_install_template: &helm_install_template
+  image: alpine/helm:latest
+  needs:
+    - setup-kubeconfig
+    - clone-helm-charts
+  script:
+    - echo "Installing $CHART_NAME with role ARN: $ROLE_ARN"
+    - |
+      if [ -n "$ROLE_ARN" ]; then
+        # Add Helm repositories for dependencies
+        if [ -f "$HELM_CHARTS_DIR/$CHART_NAME/repositories.txt" ]; then
+          echo "Adding Helm repositories defined in repositories.txt"
+          cat "$HELM_CHARTS_DIR/$CHART_NAME/repositories.txt" | while read line; do
+            if [ ! -z "$line" ]; then
+              repo_name=$(echo $line | cut -d' ' -f1)
+              repo_url=$(echo $line | cut -d' ' -f2)
+              echo "Adding repository: $repo_name $repo_url"
+              helm repo add $repo_name $repo_url
+            fi
+          done
+          helm repo update
+        fi
+        
+        # Update dependencies if Chart has requirements
+        if [ -f "$HELM_CHARTS_DIR/$CHART_NAME/Chart.yaml" ]; then
+          echo "Updating Helm dependencies"
+          helm dependency update "$HELM_CHARTS_DIR/$CHART_NAME"
+        fi
+        
+        # Create namespace if it doesn't exist
+        kubectl create namespace $NAMESPACE --dry-run=client -o yaml | kubectl apply -f -
+        
+        # Prepare values file with AWS role ARN
+        if [ -f "$HELM_CHARTS_DIR/$CHART_NAME/values.yaml" ]; then
+          echo "Installing $CHART_NAME with values file and IAM role ARN"
+          helm upgrade --install $RELEASE_NAME "$HELM_CHARTS_DIR/$CHART_NAME" \
+            --namespace $NAMESPACE \
+            --values "$HELM_CHARTS_DIR/$CHART_NAME/values.yaml" \
+            --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=$ROLE_ARN \
+            $ADDITIONAL_PARAMS
+        else
+          echo "Installing $CHART_NAME with IAM role ARN only"
+          helm upgrade --install $RELEASE_NAME "$HELM_CHARTS_DIR/$CHART_NAME" \
+            --namespace $NAMESPACE \
+            --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=$ROLE_ARN \
+            $ADDITIONAL_PARAMS
+        fi
+        
+        echo "$CHART_NAME installation complete"
+      else
+        echo "Skipping $CHART_NAME installation - role ARN not provided"
+      fi
+
+# Storage Add-ons
+ebs-csi-driver-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: storage
+  variables:
+    CHART_NAME: aws-ebs-csi-driver
+    RELEASE_NAME: aws-ebs-csi-driver
+    NAMESPACE: kube-system
+    ROLE_ARN: $EBS_CSI_DRIVER_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set controller.region=$AWS_REGION --set controller.clusterName=$CLUSTER_NAME"
+  rules:
+    - if: $EBS_CSI_DRIVER_ROLE_ARN
+
+efs-csi-driver-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: storage
+  variables:
+    CHART_NAME: aws-efs-csi-driver
+    RELEASE_NAME: aws-efs-csi-driver
+    NAMESPACE: kube-system
+    ROLE_ARN: $EFS_CSI_DRIVER_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set controller.region=$AWS_REGION"
+  rules:
+    - if: $EFS_CSI_DRIVER_ROLE_ARN
+
+# Networking Add-ons
+aws-load-balancer-controller-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: networking
+  variables:
+    CHART_NAME: aws-load-balancer-controller
+    RELEASE_NAME: aws-load-balancer-controller
+    NAMESPACE: kube-system
+    ROLE_ARN: $AWS_LOAD_BALANCER_CONTROLLER_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set clusterName=$CLUSTER_NAME --set region=$AWS_REGION"
+  rules:
+    - if: $AWS_LOAD_BALANCER_CONTROLLER_ROLE_ARN
+
+external-dns-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: networking
+  variables:
+    CHART_NAME: external-dns
+    RELEASE_NAME: external-dns
+    NAMESPACE: external-dns
+    ROLE_ARN: $EXTERNAL_DNS_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set provider=aws --set aws.region=$AWS_REGION"
+  rules:
+    - if: $EXTERNAL_DNS_ROLE_ARN
+
+nginx-ingress-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: networking
+  variables:
+    CHART_NAME: nginx-ingress
+    RELEASE_NAME: nginx-ingress
+    NAMESPACE: ingress-nginx
+    ROLE_ARN: $NGINX_INGRESS_ROLE_ARN
+    ADDITIONAL_PARAMS: ""
+  rules:
+    - if: $NGINX_INGRESS_ROLE_ARN
+
+# Observability Add-ons
+prometheus-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: observability
+  variables:
+    CHART_NAME: prometheus
+    RELEASE_NAME: prometheus
+    NAMESPACE: prometheus
+    ROLE_ARN: $PROMETHEUS_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set server.retention=7d --set alertmanager.enabled=true"
+  rules:
+    - if: $PROMETHEUS_ROLE_ARN
+
+adot-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: observability
+  variables:
+    CHART_NAME: adot
+    RELEASE_NAME: adot
+    NAMESPACE: adot
+    ROLE_ARN: $ADOT_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set region=$AWS_REGION"
+  rules:
+    - if: $ADOT_ROLE_ARN
+
+fluent-bit-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: observability
+  variables:
+    CHART_NAME: fluent-bit
+    RELEASE_NAME: fluent-bit
+    NAMESPACE: logging
+    ROLE_ARN: $FLUENT_BIT_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set aws.region=$AWS_REGION"
+  rules:
+    - if: $FLUENT_BIT_ROLE_ARN
+
+# Scaling Add-ons
+karpenter-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: scaling
+  variables:
+    CHART_NAME: karpenter
+    RELEASE_NAME: karpenter
+    NAMESPACE: karpenter
+    ROLE_ARN: $KARPENTER_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set clusterName=$CLUSTER_NAME --set aws.region=$AWS_REGION"
+  rules:
+    - if: $KARPENTER_ROLE_ARN
+
+cluster-autoscaler-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: scaling
+  variables:
+    CHART_NAME: cluster-autoscaler
+    RELEASE_NAME: cluster-autoscaler
+    NAMESPACE: kube-system
+    ROLE_ARN: $CLUSTER_AUTOSCALER_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set autoDiscovery.clusterName=$CLUSTER_NAME --set awsRegion=$AWS_REGION"
+  rules:
+    - if: $CLUSTER_AUTOSCALER_ROLE_ARN
+
+keda-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: scaling
+  variables:
+    CHART_NAME: keda
+    RELEASE_NAME: keda
+    NAMESPACE: keda
+    ROLE_ARN: $KEDA_ROLE_ARN
+    ADDITIONAL_PARAMS: ""
+  rules:
+    - if: $KEDA_ROLE_ARN
+
+# Security Add-ons
+cert-manager-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: security
+  variables:
+    CHART_NAME: cert-manager
+    RELEASE_NAME: cert-manager
+    NAMESPACE: cert-manager
+    ROLE_ARN: $CERT_MANAGER_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set installCRDs=true"
+  rules:
+    - if: $CERT_MANAGER_ROLE_ARN
+
+secrets-manager-install:
+  <<: *helm_config
+  <<: *helm_install_template
+  stage: security
+  variables:
+    CHART_NAME: secrets-store-csi-driver
+    RELEASE_NAME: secrets-store-csi-driver
+    NAMESPACE: kube-system
+    ROLE_ARN: $SECRETS_MANAGER_ROLE_ARN
+    ADDITIONAL_PARAMS: "--set aws.region=$AWS_REGION"
+  rules:
+    - if: $SECRETS_MANAGER_ROLE_ARN

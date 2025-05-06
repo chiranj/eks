@@ -111,6 +111,16 @@ output "gitlab_deployment_role_arn" {
   value       = local.gitlab_role_arn
 }
 
+output "gitlab_integration_env_file_path" {
+  description = "Path to the environment variables file for GitLab parent-child pipeline integration"
+  value       = var.trigger_gitlab_pipeline ? try(module.gitlab_integration[0].env_file_path, "") : ""
+}
+
+output "gitlab_integration_json_file_path" {
+  description = "Path to the JSON configuration file for GitLab parent-child pipeline integration"
+  value       = var.trigger_gitlab_pipeline ? try(module.gitlab_integration[0].json_file_path, "") : "" 
+}
+
 # Individual IAM role ARN outputs for easy access
 output "aws_load_balancer_controller_role_arn" {
   description = "ARN of the IAM role for AWS Load Balancer Controller"

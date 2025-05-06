@@ -288,9 +288,6 @@ module "gitlab_integration" {
   source = "./modules/gitlab-integration"
   count  = var.trigger_gitlab_pipeline ? 1 : 0
 
-  gitlab_token        = var.gitlab_token
-  gitlab_project_id   = var.gitlab_project_id
-  gitlab_pipeline_ref = var.gitlab_pipeline_ref
   aws_role_arn        = local.gitlab_role_arn
 
   cluster_name      = module.eks_cluster.cluster_name

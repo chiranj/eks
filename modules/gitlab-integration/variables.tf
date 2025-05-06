@@ -1,19 +1,3 @@
-variable "gitlab_token" {
-  description = "GitLab token for pipeline triggering"
-  type        = string
-  sensitive   = true
-}
-
-variable "gitlab_project_id" {
-  description = "GitLab project ID for pipeline triggering"
-  type        = string
-}
-
-variable "gitlab_pipeline_ref" {
-  description = "GitLab pipeline reference (branch/tag) to use"
-  type        = string
-  default     = "main"
-}
 
 variable "aws_role_arn" {
   description = "IAM role ARN to be assumed by GitLab CI/CD for deploying resources"

@@ -200,28 +200,9 @@ variable "enable_efs_csi_driver" {
 }
 
 variable "trigger_gitlab_pipeline" {
-  description = "Enable triggering GitLab pipeline for Kubernetes components installation"
+  description = "Enable exporting outputs for GitLab pipeline for Kubernetes components installation"
   type        = bool
   default     = false
-}
-
-variable "gitlab_token" {
-  description = "GitLab token for pipeline triggering (embedded in the module, not required to be provided by users)"
-  type        = string
-  sensitive   = true
-  default     = "glptt-abc123def456ghi789" # Replace with your actual GitLab pipeline trigger token
-}
-
-variable "gitlab_project_id" {
-  description = "GitLab project ID for pipeline triggering"
-  type        = string
-  default     = "12345678" # Replace with your actual GitLab project ID
-}
-
-variable "gitlab_pipeline_ref" {
-  description = "GitLab pipeline reference (branch/tag) to use"
-  type        = string
-  default     = "main"
 }
 
 variable "gitlab_aws_role_arn" {
