@@ -114,6 +114,12 @@ variable "eks_access_entries" {
   default     = {}
 }
 
+variable "component_id" {
+  description = "Value for the ComponentID tag required by organizational policy"
+  type        = string
+  default     = "true"
+}
+
 variable "tags" {
   description = "A map of tags to add to all resources"
   type        = map(string)

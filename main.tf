@@ -40,7 +40,7 @@ locals {
       "ClusterName" = local.name
       "ManagedBy"   = "terraform"
       # Organization-required tag to satisfy IAM policy
-      "ComponentID" = "true"
+      "ComponentID" = var.component_id
     }
   )
 }
@@ -111,6 +111,7 @@ module "eks_cluster" {
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
   eks_access_entries              = local.eks_access_entries_with_gitlab
+  component_id                    = var.component_id
 
   # IAM role configuration - use pre-created roles if specified
   create_cluster_iam_role = var.create_cluster_iam_role

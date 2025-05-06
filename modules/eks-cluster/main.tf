@@ -51,7 +51,7 @@ locals {
         lookup(group, "tags", {}),
         {
           # Required per organization policy "DenyWithNoCompTag"
-          "ComponentID" = "true"
+          "ComponentID" = var.component_id
         }
       )
       
@@ -134,13 +134,31 @@ module "eks" {
   cluster_security_group_name            = "${local.name}-cluster-sg"
   node_security_group_name               = "${local.name}-node-sg"
   
-  # Organizational tagging requirements
+  # Organizational tagging requirements and volume configuration
   # The decoded error shows we need a ComponentID tag on EC2 resources
+  # And we need to use gp3 volumes instead of gp2, with encryption enabled
   eks_managed_node_group_defaults = {
     # Ensure tags are added to all resources created for node groups
     # This addresses the organization policy "DenyWithNoCompTag"
     tags = {
-      "ComponentID" = "true"
+      "ComponentID" = var.component_id
+    }
+    
+    # Block device configuration for all node groups
+    # Using gp3 instead of gp2 (as required by organization policy "DenyVolumeTypegp2")
+    # And enabling encryption (as required by policy "EC2VolumeDenyWithoutEncryption")
+    block_device_mappings = {
+      root = {
+        device_name = "/dev/xvda"
+        ebs = {
+          volume_size           = 50
+          volume_type           = "gp3"  # Using gp3 instead of gp2
+          iops                  = 3000
+          throughput            = 150
+          encrypted             = true   # Enable encryption for all volumes
+          delete_on_termination = true
+        }
+      }
     }
   }
   
