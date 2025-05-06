@@ -21,52 +21,68 @@ locals {
 
   # User data is handled directly in the prepared_eks_managed_node_groups local
 
-  # Simplified direct node group configuration
-  # This avoids the complex launch template handling that can cause permission issues
-  prepared_eks_managed_node_groups = {
-    for name, group in var.eks_managed_node_groups : name => merge(
-      # First include all base configuration
-      group,
-
-      # For custom AMIs, add necessary configuration
-      lookup(group, "ami_id", "") != "" ? {
-        # Set proper AMI configuration 
-        create_launch_template = true
-
-        # Provide user data directly at the top level
-        user_data_template_override = templatefile("${path.module}/templates/user-data.sh", {
-          cluster_name               = local.name
-          cluster_endpoint           = module.eks.cluster_endpoint
-          certificate_authority_data = module.eks.cluster_certificate_authority_data
-          service_ipv4_cidr          = var.service_ipv4_cidr
-          dns_cluster_ip             = local.dns_cluster_ip
-          bootstrap_extra_args       = lookup(group, "bootstrap_extra_args", "")
-          kubelet_extra_args         = lookup(group, "kubelet_extra_args", "")
-          extra_kubelet_args         = lookup(group, "kubelet_extra_args", "")
-        })
-      } : {},
-
-      # Handle pre-created launch templates if specified
-      var.use_existing_launch_templates && contains(keys(var.launch_template_arns), name) ? {
-        create_launch_template = false
-        launch_template_id     = reverse(split("/", var.launch_template_arns[name]))[0]
-      } : {},
-
-      # IAM role configuration (if using pre-created role)
-      !var.create_node_iam_role ? {
-        create_iam_role = false
-        iam_role_arn    = var.node_iam_role_arn
-      } : {}
-    )
+  # Completely revamp our node group approach to avoid launch templates entirely
+  # Instead, use the native AMI support directly in the Terraform AWS EKS module
+  managed_node_groups = {
+    for name, group in var.eks_managed_node_groups : name => {
+      # Pass through all base configurations
+      name = lookup(group, "name", name)
+      
+      # Use sensible defaults for scaling
+      min_size     = lookup(group, "min_size", 1)
+      max_size     = lookup(group, "max_size", 3) 
+      desired_size = lookup(group, "desired_size", 2)
+      
+      # Instance configurations
+      instance_types = lookup(group, "instance_types", ["t3.medium"])
+      capacity_type  = lookup(group, "capacity_type", "ON_DEMAND")
+      disk_size      = lookup(group, "disk_size", 50)
+      
+      # Labels and metadata
+      labels = lookup(group, "labels", {})
+      tags   = lookup(group, "tags", {})
+      
+      # Custom AMI ID handling
+      # We need to set ami_type to null when using custom_ami_id
+      # This directly uses EKS API attributes without launch templates
+      ami_type = lookup(group, "custom_ami_id", null) != null ? null : lookup(group, "ami_type", "AL2_x86_64")
+      
+      # Only pass custom_ami_id if it's provided, otherwise omit it
+      custom_ami_id = lookup(group, "custom_ami_id", null)
+            
+      # IAM settings
+      create_iam_role = var.create_node_iam_role
+      iam_role_arn    = var.create_node_iam_role ? null : var.node_iam_role_arn
+      
+      # Block device mappings
+      block_device_mappings = {
+        xvda = {
+          device_name = "/dev/xvda"
+          ebs = {
+            volume_size           = lookup(group, "disk_size", 50)
+            volume_type           = "gp3"
+            delete_on_termination = true
+          }
+        }
+      }
+      
+      # Handle bootstrap arguments for AWS-provided AMIs (no custom user data)
+      bootstrap_extra_args = lookup(group, "bootstrap_extra_args", "")
+      
+      # For custom AMIs, we use a simpler technique - avoid all templating issues
+      pre_bootstrap_user_data = ""
+      
+      # Remote access configuration (empty map instead of null to avoid errors)
+      remote_access = {}
+    }
   }
 }
 
-# Create a dedicated IAM policy for launch template access 
-# This policy grants necessary permissions to work with launch templates to avoid the
-# "You are not authorized to launch instances with this launch template" error
+# Create a dedicated IAM policy with comprehensive EC2 permissions
+# This ensures the node group role has all necessary permissions to launch instances
 resource "aws_iam_policy" "launch_template_access" {
-  name        = "${local.name}-launch-template-access"
-  description = "Provides necessary permissions to use launch templates with EKS node groups"
+  name        = "${local.name}-ec2-full-access"
+  description = "Provides all necessary EC2 permissions for EKS node groups with custom AMIs"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -74,7 +90,12 @@ resource "aws_iam_policy" "launch_template_access" {
       {
         Effect = "Allow"
         Action = [
+          # Launch instance permissions
           "ec2:RunInstances",
+          "ec2:DescribeInstances",
+          "ec2:TerminateInstances",
+          
+          # Launch template permissions
           "ec2:CreateLaunchTemplate",
           "ec2:CreateLaunchTemplateVersion",
           "ec2:DeleteLaunchTemplate",
@@ -82,7 +103,44 @@ resource "aws_iam_policy" "launch_template_access" {
           "ec2:DescribeLaunchTemplates",
           "ec2:DescribeLaunchTemplateVersions",
           "ec2:ModifyLaunchTemplate",
-          "ec2:CreateTags"
+          "ec2:StartInstances",
+          "ec2:StopInstances",
+          
+          # AMI/Image permissions
+          "ec2:DescribeImages",
+          "ec2:DescribeImageAttribute",
+          
+          # Network interface permissions
+          "ec2:CreateNetworkInterface",
+          "ec2:DeleteNetworkInterface",
+          "ec2:DescribeNetworkInterfaces",
+          "ec2:AttachNetworkInterface",
+          "ec2:DetachNetworkInterface",
+          
+          # Security group permissions
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSecurityGroupRules",
+          
+          # Subnet permissions
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs",
+          "ec2:DescribeRouteTables",
+          
+          # Volume permissions
+          "ec2:CreateVolume",
+          "ec2:DeleteVolume",
+          "ec2:AttachVolume",
+          "ec2:DetachVolume",
+          "ec2:DescribeVolumes",
+          "ec2:DescribeVolumeAttribute",
+          
+          # Instance Type
+          "ec2:DescribeInstanceTypes",
+          
+          # Tag permissions
+          "ec2:CreateTags",
+          "ec2:DeleteTags",
+          "ec2:DescribeTags"
         ]
         Resource = "*"
       }
@@ -109,45 +167,29 @@ module "eks" {
   # Always create security group
   create_node_security_group = true
 
-  # Configure node groups with strong defaults to ensure proper permissions
-  eks_managed_node_group_defaults = {
-    # Ensure IAM permissions are correctly configured
-    iam_role_additional_policies = {
-      AmazonEKSWorkerNodePolicy          = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-      AmazonEC2ContainerRegistryReadOnly = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-      AmazonEKS_CNI_Policy               = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-      AmazonSSMManagedInstanceCore       = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-      # Include specific EC2 permissions for launch templates to resolve the authorization error
-      # We create this policy inline below to avoid creating an additional resource
-      EC2LaunchTemplateFullAccess = aws_iam_policy.launch_template_access.arn
-    }
-
-    # Define our extra IAM configuration
-    iam_role_name        = "${local.name}-eks-node-group-role"
-    iam_role_description = "EKS managed node group role for cluster ${local.name}"
-
-    # Set proper block device mappings for all node groups
-    block_device_mappings = {
-      xvda = {
-        device_name = "/dev/xvda"
-        ebs = {
-          volume_size           = 50
-          volume_type           = "gp3"
-          delete_on_termination = true
-        }
-      }
-    }
-
-    # Default metadata settings to ensure security best practices
-    metadata_options = {
-      http_endpoint               = "enabled"
-      http_tokens                 = "required"
-      http_put_response_hop_limit = 2
-    }
+  # Use our completely revised approach to node groups
+  # Instead of using launch templates, we directly configure the node groups
+  # with custom AMIs using EKS's native custom_ami_id support
+  
+  # These permissions apply to all node groups
+  iam_role_additional_policies = {
+    AmazonEKSWorkerNodePolicy          = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+    AmazonEC2ContainerRegistryReadOnly = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+    AmazonEKS_CNI_Policy               = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+    AmazonSSMManagedInstanceCore       = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    # Add EC2 instance and launch template permissions
+    EC2FullAccess = aws_iam_policy.launch_template_access.arn
   }
-
-  # Use our simplified node group configuration
-  eks_managed_node_groups = local.prepared_eks_managed_node_groups
+  
+  # Global EKS cluster-level settings
+  create_cloudwatch_log_group   = true
+  cloudwatch_log_group_retention_in_days = 90
+  cluster_enabled_log_types     = ["api", "audit", "authenticator"]
+  cluster_security_group_name   = "${local.name}-cluster-sg"
+  node_security_group_name      = "${local.name}-node-sg"
+  
+  # Use our managed node groups directly - skipping launch templates
+  eks_managed_node_groups = local.managed_node_groups
 
   # Cluster IP family
   cluster_ip_family = var.cluster_ip_family

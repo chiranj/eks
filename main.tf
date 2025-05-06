@@ -120,8 +120,8 @@ module "eks_cluster" {
   eks_managed_node_groups = {
     for name, group in var.eks_managed_node_groups : name => merge(
       group,
-      var.node_group_ami_id != "" && !contains(keys(group), "ami_id") ?
-      { ami_id = var.node_group_ami_id } : {}
+      var.node_group_ami_id != "" && !contains(keys(group), "custom_ami_id") ?
+      { custom_ami_id = var.node_group_ami_id } : {}
     )
   }
 
