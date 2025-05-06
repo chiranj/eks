@@ -116,12 +116,20 @@ module "eks_cluster" {
   create_node_iam_role    = var.create_node_iam_role
   node_iam_role_arn       = var.node_iam_role_arn
 
+  # =================================================================
+  # ROLLBACK POINT: Using EKS-managed node groups with directly specified custom_ami_id
+  # =================================================================
+  
   # Node Groups with optional custom AMI
+  # We use custom_ami_id to let EKS handle launch template creation with proper permissions
   eks_managed_node_groups = {
     for name, group in var.eks_managed_node_groups : name => merge(
       group,
-      var.node_group_ami_id != "" && !contains(keys(group), "custom_ami_id") ?
-      { custom_ami_id = var.node_group_ami_id } : {}
+      var.node_group_ami_id != "" && !contains(keys(group), "custom_ami_id") ? {
+        # Set custom_ami_id and make sure ami_type is null when using custom AMI
+        custom_ami_id = var.node_group_ami_id
+        ami_type = null
+      } : {}
     )
   }
 
