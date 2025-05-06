@@ -151,5 +151,15 @@ To add a new add-on to the Service Catalog product:
 3. Include the add-on data in the GitLab payload
 4. Add corresponding Helm chart and pipeline job in the GitLab repository
 
-
-aws dynamodb delete-item --table-name your_lock_table_name --key '{\"LockID\": {\"S\": \"your_lock_id\"}}'
+Error message: operation error DynamoDB: PutItem, https response error
+│ StatusCode: 400, RequestID:
+│ KD1IRQS23UQ4L9LJ54AE5MUQ7JVV4KQNSO5AEMVJF66Q9ASUAAJG,
+│ ConditionalCheckFailedException: The conditional request failed
+│ Lock Info:
+│   ID:        ae7a28de-48e7-0c35-416b-36b4227b194c
+│   Path:      psb-terraform-state-bucket/eks-module-2.tfstate
+│   Operation: OperationTypePlan
+│   Who:       root@runner-t3qyxf-project-7120-concurrent-0
+│   Version:   1.6.6
+│   Created:   2025-05-06 18:14:47.949468246 +0000 UTC
+│   Info:      
