@@ -36,5 +36,5 @@ output "eks_managed_node_groups" {
 
 output "custom_launch_templates" {
   description = "Launch templates created for node groups with custom AMIs (now handled by EKS module)"
-  value = {}
+  value       = {}
 }

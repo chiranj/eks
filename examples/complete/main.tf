@@ -109,18 +109,14 @@ module "eks" {
   node_scaling_method = "karpenter"
   enable_keda         = true
 
-  # Launch template configuration for custom AMIs
-  node_group_ami_id                       = var.node_group_ami_id
-  create_launch_templates_for_custom_amis = var.create_launch_templates_for_custom_amis
+  # Launch template configuration for custom AMI
+  node_group_ami_id = var.node_group_ami_id
 
   enable_external_dns = false
   enable_prometheus   = false
 
   # GitLab integration
   trigger_gitlab_pipeline = true
-  # Token is embedded in the module, no need to provide it here
-  gitlab_project_id   = "12345678" # Using the default project ID
-  gitlab_pipeline_ref = "main"
   # Optional custom IAM role ARN for GitLab CI/CD deployment
   gitlab_aws_role_arn = var.gitlab_aws_role_arn
 

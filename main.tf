@@ -109,12 +109,12 @@ module "eks_cluster" {
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
   eks_access_entries              = local.eks_access_entries_with_gitlab
-  
+
   # IAM role configuration - use pre-created roles if specified
-  create_cluster_iam_role         = var.create_cluster_iam_role
-  cluster_iam_role_arn            = var.cluster_iam_role_arn
-  create_node_iam_role            = var.create_node_iam_role
-  node_iam_role_arn               = var.node_iam_role_arn
+  create_cluster_iam_role = var.create_cluster_iam_role
+  cluster_iam_role_arn    = var.cluster_iam_role_arn
+  create_node_iam_role    = var.create_node_iam_role
+  node_iam_role_arn       = var.node_iam_role_arn
 
   # Node Groups with optional custom AMI
   eks_managed_node_groups = {
@@ -126,9 +126,9 @@ module "eks_cluster" {
   }
 
   # Basic cluster configuration
-  service_ipv4_cidr             = var.service_ipv4_cidr
-  cluster_ip_family             = var.cluster_ip_family
-  
+  service_ipv4_cidr = var.service_ipv4_cidr
+  cluster_ip_family = var.cluster_ip_family
+
   # We're now letting the EKS module handle launch template creation
   # Only passing these variables for the rare case where someone wants to use
   # a pre-created launch template instead of having the module create one
