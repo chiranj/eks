@@ -125,12 +125,15 @@ module "eks_cluster" {
     )
   }
 
-  # Launch template configuration
-  create_launch_templates_for_custom_amis = var.create_launch_templates_for_custom_amis
-  use_existing_launch_templates           = var.use_existing_launch_templates
-  launch_template_arns                    = var.launch_template_arns
-  service_ipv4_cidr                       = var.service_ipv4_cidr
-  cluster_ip_family                       = var.cluster_ip_family
+  # Basic cluster configuration
+  service_ipv4_cidr             = var.service_ipv4_cidr
+  cluster_ip_family             = var.cluster_ip_family
+  
+  # We're now letting the EKS module handle launch template creation
+  # Only passing these variables for the rare case where someone wants to use
+  # a pre-created launch template instead of having the module create one
+  use_existing_launch_templates = var.use_existing_launch_templates
+  launch_template_arns          = var.launch_template_arns
 
   tags = local.tags
 }

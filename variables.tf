@@ -79,12 +79,6 @@ variable "node_group_ami_id" {
   default     = ""
 }
 
-variable "create_launch_templates_for_custom_amis" {
-  description = "Whether to create launch templates for node groups with custom AMIs"
-  type        = bool
-  default     = true
-}
-
 variable "use_existing_launch_templates" {
   description = "Whether to use pre-created launch templates instead of creating new ones"
   type        = bool

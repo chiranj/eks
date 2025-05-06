@@ -77,26 +77,33 @@ eks_managed_node_groups = {
 # Optional: Custom AMI ID for all node groups (can be overridden per node group)
 node_group_ami_id = "ami-0123456789abcdef0"
 
-# Launch template configuration options
-# IMPORTANT PERMISSIONS NOTE:
-# If using custom AMIs with launch templates, your EKS cluster role (IAM role) MUST have:
-# 1. ec2:RunInstances permission
-# 2. ec2:CreateLaunchTemplate permission  
-# 3. ec2:DescribeLaunchTemplates permission
-# 4. ec2:DescribeLaunchTemplateVersions permission
-# 5. Permission to use the specified AMI (ec2:DescribeImages)
+# Custom AMI usage:
+# To use custom AMIs with your EKS node groups, simply specify the ami_id in your node groups:
+# eks_managed_node_groups = {
+#   custom-group = {
+#     ami_id = "ami-0123456789abcdef0"
+#     ...
+#   }
+# }
 #
-# Make sure your pre-created cluster_iam_role_arn has these permissions!
-
-# Option 1: Create launch templates within Terraform
-create_launch_templates_for_custom_amis = true
-
-# Option 2: Use pre-created launch templates
-use_existing_launch_templates = false
+# The module will automatically:
+# 1. Have the EKS service create properly authorized launch templates
+# 2. Configure user data with the right bootstrap scripts
+# 3. Set proper tags and metadata configuration
+#
+# This approach doesn't require any special permissions for launch templates
+# and should resolve the "not authorized to use launch template" error.
+#
+# ADVANCED USAGE (RARELY NEEDED): Pre-created launch templates
+# Most users should NOT need this - the default approach above is simpler and more reliable.
+# Only use this if you have specific requirements for pre-created launch templates.
+#
+# To use pre-created launch templates instead of letting EKS create them:
+use_existing_launch_templates = false  # Change to true only if using pre-created templates
+# Map node group names to their pre-created launch template ARNs:
 launch_template_arns = {
-  # Map node group names to existing launch template ARNs
-  # default = "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-0123456789abcdef"
-  # special = "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-fedcba9876543210"
+  # For example:
+  # "my-custom-node-group" = "arn:aws:ec2:us-east-1:123456789012:launch-template/lt-0123456789abcdef"
 }
 
 # Cluster networking configuration

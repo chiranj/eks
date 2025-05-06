@@ -66,17 +66,6 @@ variable "eks_managed_node_groups" {
   default     = {}
 }
 
-variable "create_launch_templates_for_custom_amis" {
-  description = "Whether to create launch templates for node groups with custom AMIs"
-  type        = bool
-  default     = true
-
-  validation {
-    condition     = var.create_launch_templates_for_custom_amis != null
-    error_message = "The create_launch_templates_for_custom_amis variable must not be null."
-  }
-}
-
 variable "use_existing_launch_templates" {
   description = "Whether to use pre-created launch templates instead of creating new ones"
   type        = bool

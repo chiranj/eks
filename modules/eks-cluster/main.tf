@@ -10,12 +10,6 @@ locals {
   # DNS cluster IP based on service CIDR
   dns_cluster_ip = cidrhost(var.service_ipv4_cidr, 10)
 
-  # First identify which node groups have custom AMIs
-  node_groups_with_custom_ami = {
-    for name, group in var.eks_managed_node_groups :
-    name => group if lookup(group, "ami_id", "") != ""
-  }
-  
   # Extract launch template details from ARNs for pre-created templates
   launch_template_data = {
     for name, arn in var.launch_template_arns : name => {
@@ -25,130 +19,81 @@ locals {
     } if contains(keys(var.eks_managed_node_groups), name)
   }
 
-  # Prepare node groups configuration based on whether we're using launch templates
-  # This handles conditional type safety by consistently preparing node group configs
+  # Generate user data for each node group that will have a custom AMI
+  # This ensures bootstrap scripts have the right cluster information
+  node_group_user_data = {
+    for name, group in var.eks_managed_node_groups :
+    name => base64encode(templatefile("${path.module}/templates/user-data.sh", {
+      cluster_name               = local.name
+      cluster_endpoint           = module.eks.cluster_endpoint
+      certificate_authority_data = module.eks.cluster_certificate_authority_data
+      service_ipv4_cidr          = var.service_ipv4_cidr
+      dns_cluster_ip             = local.dns_cluster_ip
+      bootstrap_extra_args       = lookup(group, "bootstrap_extra_args", "")
+      kubelet_extra_args         = lookup(group, "kubelet_extra_args", "")
+      extra_kubelet_args         = lookup(group, "kubelet_extra_args", "") # Duplicate for compatibility with template
+    })) if lookup(group, "ami_id", "") != ""
+  }
+
+  # Prepare node groups configuration with a COMPLETELY DIFFERENT APPROACH
+  # Let the EKS module create the launch templates for us with the right permissions
   eks_managed_node_group_configs = {
     for name, group in var.eks_managed_node_groups : name => merge(
-      # Base configuration that always applies
+      # Remove ami_id and add it to the launch template config instead
       {
         for k, v in group : k => v if k != "ami_id"
       },
-
-      # OPTION 1: Use pre-created launch templates if specified
-      var.use_existing_launch_templates && contains(keys(var.launch_template_arns), name) ? {
-        # Use existing launch template ID
-        launch_template_id      = lookup(local.launch_template_data, name, {}).id
-        create_launch_template  = false
-      } : 
-      # OPTION 2: Create launch templates for node groups with custom AMIs
-      var.create_launch_templates_for_custom_amis && lookup(group, "ami_id", "") != "" ? {
-        # Connect to the launch template we'll create
-        launch_template_name    = aws_launch_template.custom_ami[name].name
-        launch_template_version = aws_launch_template.custom_ami[name].latest_version
+      
+      # For groups with custom AMIs, let the EKS module create the launch template
+      lookup(group, "ami_id", "") != "" ? {
+        # Tell EKS module to create a launch template
+        create_launch_template = true
         
-        # Do NOT set ami_type here - the AWS provider will handle it correctly
-        # The EKS managed node group module sets ami_type = null when ami_id is set
+        # Configure launch template with the custom AMI
+        launch_template_id = null
+        launch_template_name = null
+        launch_template_version = null
+        
+        # Add the custom AMI config to the launch template
+        launch_template_configs = [{
+          ami_id = lookup(group, "ami_id", "")
+          image_id = lookup(group, "ami_id", "")
+          
+          # Set proper tags for the instances
+          instance_tags = {
+            "kubernetes.io/cluster/${local.name}" = "owned"
+          }
+          
+          # Add proper configuration for cluster access
+          user_data = lookup(local.node_group_user_data, name, null)
+          
+          # Ensure metadata service is correctly configured
+          metadata_options = {
+            http_endpoint               = "enabled"
+            http_tokens                 = "required"
+            http_put_response_hop_limit = 2
+          }
+        }]
+      } : {},
+      
+      # For node groups with pre-created launch templates, use them directly
+      var.use_existing_launch_templates && contains(keys(var.launch_template_arns), name) ? {
+        create_launch_template = false
+        launch_template_id = lookup(local.launch_template_data, name, {}).id
       } : {},
       
       # If using pre-created IAM role, ensure we pass through the IAM role config
-      # This allows the eks_managed_node_group_defaults to take effect
       !var.create_node_iam_role ? {
-        # We do not override these here since eks_managed_node_group_defaults will handle it
-        # Any explicit IAM role settings would be added here if needed
+        create_iam_role = false
+        iam_role_arn    = var.node_iam_role_arn
       } : {}
     )
   }
 }
 
-# Create launch templates for node groups with custom AMIs
-# Only create if:
-# 1. We're supposed to create launch templates for custom AMIs
-# 2. We're not using existing launch templates
-# 3. The node group has a custom AMI
-resource "aws_launch_template" "custom_ami" {
-  for_each = var.create_launch_templates_for_custom_amis && !var.use_existing_launch_templates ? local.node_groups_with_custom_ami : {}
-
-  name_prefix = "${local.name}-${each.key}-"
-  image_id    = each.value.ami_id
-
-  # Use instance type from node group if specified
-  instance_type = lookup(each.value, "instance_types", null) != null ? lookup(each.value, "instance_types", [])[0] : null
-
-  # Critical: Public launch template that allows EKS to use it without permission issues
-  tag_specifications {
-    resource_type = "launch-template"
-    tags = merge(
-      var.tags,
-      {
-        Name = "${local.name}-${each.key}-launch-template"
-        "kubernetes.io/cluster/${local.name}" = "owned"
-      }
-    )
-  }
-
-  # Only add user_data after the cluster exists to get the correct endpoint
-  user_data = base64encode(templatefile("${path.module}/templates/user-data.sh", {
-    cluster_name               = local.name
-    cluster_endpoint           = module.eks.cluster_endpoint
-    certificate_authority_data = module.eks.cluster_certificate_authority_data
-    service_ipv4_cidr          = var.service_ipv4_cidr
-    dns_cluster_ip             = local.dns_cluster_ip
-    bootstrap_extra_args       = lookup(each.value, "bootstrap_extra_args", "")
-    kubelet_extra_args         = lookup(each.value, "kubelet_extra_args", "")
-    extra_kubelet_args         = lookup(each.value, "kubelet_extra_args", "") # Duplicate for compatibility with template
-  }))
-
-  # Add tags
-  tag_specifications {
-    resource_type = "instance"
-    tags = merge(
-      var.tags,
-      {
-        Name = "${local.name}-${each.key}-node"
-        "kubernetes.io/cluster/${local.name}" = "owned"
-      }
-    )
-  }
-
-  # Add tags for EBS volumes created by the node
-  tag_specifications {
-    resource_type = "volume"
-    tags = merge(
-      var.tags,
-      {
-        Name = "${local.name}-${each.key}-volume"
-        "kubernetes.io/cluster/${local.name}" = "owned"
-      }
-    )
-  }
-
-  # Add network interface tags
-  tag_specifications {
-    resource_type = "network-interface"
-    tags = merge(
-      var.tags,
-      {
-        Name = "${local.name}-${each.key}-eni"
-        "kubernetes.io/cluster/${local.name}" = "owned"
-      }
-    )
-  }
-
-  # Make the template available to EKS service
-  metadata_options {
-    http_endpoint               = "enabled"
-    http_tokens                 = "required"
-    http_put_response_hop_limit = 2
-  }
-
-  monitoring {
-    enabled = true
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
+# No longer creating custom launch templates here
+# Instead, we're letting the EKS module create them with proper permissions
+# This should fix the "You are not authorized to launch instances with this launch template" error
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
@@ -169,31 +114,12 @@ module "eks" {
   # Always create security group
   create_node_security_group      = true
   
-  # Configure node groups to use existing IAM role if specified
-  eks_managed_node_group_defaults = merge(
-    var.create_node_iam_role ? {} : {
-      create_iam_role = false
-      iam_role_arn    = var.node_iam_role_arn
-    },
-    {
-      # Fix for iam_role_additional_policies type mismatch
-      iam_role_additional_policies = {},
-      
-      # Do NOT set ami_type at all - let the AWS provider handle it based on the AMI ID
-      
-      # Add block device mappings to handle AMI permissions
-      block_device_mappings = {
-        xvda = {
-          device_name = "/dev/xvda"
-          ebs = {
-            volume_size = 20
-            volume_type = "gp3"
-            delete_on_termination = true
-          }
-        }
-      }
-    }
-  )
+  # Configure node groups with minimal defaults
+  # Most configuration is now done in the eks_managed_node_group_configs local
+  eks_managed_node_group_defaults = {
+    # Fix for iam_role_additional_policies type mismatch
+    iam_role_additional_policies = {}
+  }
   
   # Use the prepared node group configs with proper launch template handling
   eks_managed_node_groups = local.eks_managed_node_group_configs
