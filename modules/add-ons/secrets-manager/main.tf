@@ -5,10 +5,14 @@
  */
 
 locals {
-  name = "secrets-manager"
+  name             = "secrets-manager"
+  create_resources = var.create_role
+  role_name        = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
+  role_arn         = var.create_role ? aws_iam_role.this[0].arn : var.existing_role_arn
 }
 
 data "aws_iam_policy_document" "this" {
+  count = local.create_resources ? 1 : 0
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
@@ -27,12 +31,14 @@ data "aws_iam_policy_document" "this" {
 }
 
 resource "aws_iam_role" "this" {
-  name               = "${var.cluster_name}-${local.name}"
-  assume_role_policy = data.aws_iam_policy_document.this.json
+  count              = local.create_resources ? 1 : 0
+  name        = "${var.cluster_name}-${local.name}"
+  assume_role_policy = data.aws_iam_policy_document.this[0].json
   tags               = var.tags
 }
 
 resource "aws_iam_policy" "this" {
+  count       = local.create_resources ? 1 : 0
   name        = "${var.cluster_name}-${local.name}"
   description = "IAM policy for AWS Secrets & Configuration Provider"
 
@@ -61,6 +67,7 @@ resource "aws_iam_policy" "this" {
 }
 
 resource "aws_iam_role_policy_attachment" "this" {
-  role       = aws_iam_role.this.name
-  policy_arn = aws_iam_policy.this.arn
+  count      = local.create_resources ? 1 : 0
+  role       = aws_iam_role.this[0].name
+  policy_arn = aws_iam_policy.this[0].arn
 }

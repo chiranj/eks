@@ -1,14 +1,19 @@
 /**
  * # AWS Load Balancer Controller IAM Role Module
  *
- * This module creates the necessary IAM roles and policies for the AWS Load Balancer Controller add-on.
+ * This module creates or uses existing IAM roles and policies for the AWS Load Balancer Controller add-on.
  */
 
 locals {
-  name = "aws-load-balancer-controller"
+  name             = "aws-load-balancer-controller"
+  create_resources = var.create_role
+  role_name        = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
+  role_arn         = var.create_role ? aws_iam_role.this[0].arn : var.existing_role_arn
 }
 
 data "aws_iam_policy_document" "this" {
+  count = local.create_resources ? 1 : 0
+  
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
@@ -27,13 +32,15 @@ data "aws_iam_policy_document" "this" {
 }
 
 resource "aws_iam_role" "this" {
-  name               = "${var.cluster_name}-${local.name}"
-  assume_role_policy = data.aws_iam_policy_document.this.json
+  count              = local.create_resources ? 1 : 0
+  name               = local.role_name
+  assume_role_policy = data.aws_iam_policy_document.this[0].json
   tags               = var.tags
 }
 
 # Create a custom policy or use AWS managed policies
 resource "aws_iam_policy" "this" {
+  count       = local.create_resources ? 1 : 0
   name        = "${var.cluster_name}-${local.name}"
   description = "IAM policy for AWS Load Balancer Controller"
 
@@ -135,6 +142,7 @@ resource "aws_iam_policy" "this" {
 }
 
 resource "aws_iam_role_policy_attachment" "this" {
-  role       = aws_iam_role.this.name
-  policy_arn = aws_iam_policy.this.arn
+  count      = local.create_resources ? 1 : 0
+  role       = aws_iam_role.this[0].name
+  policy_arn = aws_iam_policy.this[0].arn
 }

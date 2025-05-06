@@ -78,10 +78,28 @@ eks_managed_node_groups = {
 node_group_ami_id = "ami-0123456789abcdef0"
 
 # Custom AMI usage:
-# To use custom AMIs with your EKS node groups, simply specify the ami_id in your node groups:
+# To use custom AMIs with your EKS node groups, simply specify the custom_ami_id in your node groups:
 # eks_managed_node_groups = {
 #   custom-group = {
-#     ami_id = "ami-0123456789abcdef0"
+#     custom_ami_id = "ami-0123456789abcdef0"
+#     # When using custom_ami_id, ami_type must be null
+#     ami_type = null
+#     
+#     # Block device mappings - REQUIRED for organizational policies
+#     # Must use gp3 (not gp2) and enable encryption
+#     block_device_mappings = {
+#       root = {
+#         device_name = "/dev/xvda"
+#         ebs = {
+#           volume_size           = 50
+#           volume_type           = "gp3"     # REQUIRED: Must use gp3 instead of gp2
+#           iops                  = 3000
+#           throughput            = 150
+#           encrypted             = true      # REQUIRED: Must be encrypted
+#           delete_on_termination = true
+#         }
+#       }
+#     }
 #     ...
 #   }
 # }
@@ -90,6 +108,7 @@ node_group_ami_id = "ami-0123456789abcdef0"
 # 1. Have the EKS service create properly authorized launch templates
 # 2. Configure user data with the right bootstrap scripts
 # 3. Set proper tags and metadata configuration
+# 4. Configure volumes to use gp3 (not gp2) and enable encryption
 #
 # This approach doesn't require any special permissions for launch templates
 # and should resolve the "not authorized to use launch template" error.
@@ -151,6 +170,39 @@ trigger_gitlab_pipeline   = true   # Set to true to enable GitLab CI/CD integrat
 # GitLab AWS Authentication
 # You must provide the GitLab role ARN for GitLab integration
 gitlab_aws_role_arn = "arn:aws:iam::123456789012:role/MyGitLabDeploymentRole"
+
+# Organization policy required tag
+component_id = "aws-eks-cluster"  # Required by organizational policy "DenyWithNoCompTag"
+
+# IAM role creation control
+# Set to false if you have organizations that restrict IAM role creation
+# and need to use pre-existing roles for add-ons
+create_addon_roles = true
+
+# Pre-existing IAM roles (only used when create_addon_roles = false)
+# Map of add-on names to their existing IAM role ARNs
+addon_role_arns = {
+  # aws_load_balancer_controller = "arn:aws:iam::123456789012:role/existing-aws-lb-controller-role"
+  # karpenter                    = "arn:aws:iam::123456789012:role/existing-karpenter-role"
+  # cluster_autoscaler           = "arn:aws:iam::123456789012:role/existing-cluster-autoscaler-role"
+  # keda                         = "arn:aws:iam::123456789012:role/existing-keda-role"
+  # external_dns                 = "arn:aws:iam::123456789012:role/existing-external-dns-role"
+  # prometheus                   = "arn:aws:iam::123456789012:role/existing-prometheus-role"
+  # secrets_manager              = "arn:aws:iam::123456789012:role/existing-secrets-manager-role"
+  # cert_manager                 = "arn:aws:iam::123456789012:role/existing-cert-manager-role"
+  # nginx_ingress                = "arn:aws:iam::123456789012:role/existing-nginx-ingress-role"
+  # adot                         = "arn:aws:iam::123456789012:role/existing-adot-role"
+  # fluent_bit                   = "arn:aws:iam::123456789012:role/existing-fluent-bit-role"
+  # ebs_csi_driver               = "arn:aws:iam::123456789012:role/existing-ebs-csi-driver-role"
+  # efs_csi_driver               = "arn:aws:iam::123456789012:role/existing-efs-csi-driver-role"
+}
+
+# Pre-existing IAM role names (only used when create_addon_roles = false)
+# Map of add-on names to their existing IAM role names - optional
+addon_role_names = {
+  # aws_load_balancer_controller = "existing-aws-lb-controller-role"
+  # karpenter                    = "existing-karpenter-role"
+}
 
 # Tags
 tags = {

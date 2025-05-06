@@ -254,6 +254,24 @@ variable "component_id" {
   default     = "true"
 }
 
+variable "create_addon_roles" {
+  description = "Whether to create IAM roles for add-ons. Set to false to use existing roles"
+  type        = bool
+  default     = true
+}
+
+variable "addon_role_arns" {
+  description = "Map of add-on names to existing IAM role ARNs (used when create_addon_roles is false)"
+  type        = map(string)
+  default     = {}
+}
+
+variable "addon_role_names" {
+  description = "Map of add-on names to existing IAM role names (used when create_addon_roles is false)"
+  type        = map(string)
+  default     = {}
+}
+
 variable "tags" {
   description = "A map of tags to add to all resources"
   type        = map(string)

@@ -16,3 +16,10 @@ variable "node_group_ami_id" {
 }
 
 # Variable removed as it's no longer needed - launch templates are now managed internally
+
+# Organization policy required tag
+variable "component_id" {
+  description = "Value for the ComponentID tag required by organizational policy"
+  type        = string
+  default     = "aws-eks-cluster"  # Default value for the ComponentID tag
+}

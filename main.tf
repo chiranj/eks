@@ -168,6 +168,11 @@ module "aws_load_balancer_controller_iam" {
 
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
+  
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "aws_load_balancer_controller", "")
+  existing_role_arn = lookup(var.addon_role_arns, "aws_load_balancer_controller", "")
 
   tags = local.tags
 }
@@ -180,6 +185,11 @@ module "karpenter_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "karpenter", "")
+  existing_role_arn = lookup(var.addon_role_arns, "karpenter", "")
+  
   tags = local.tags
 }
 
@@ -191,6 +201,11 @@ module "cluster_autoscaler_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "cluster_autoscaler", "")
+  existing_role_arn = lookup(var.addon_role_arns, "cluster_autoscaler", "")
+  
   tags = local.tags
 }
 
@@ -202,6 +217,11 @@ module "keda_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "keda", "")
+  existing_role_arn = lookup(var.addon_role_arns, "keda", "")
+  
   tags = local.tags
 }
 
@@ -217,6 +237,11 @@ module "external_dns_iam" {
   existing_hosted_zone_id = var.external_dns_existing_hosted_zone_id
   domain                  = var.external_dns_domain
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "external_dns", "")
+  existing_role_arn = lookup(var.addon_role_arns, "external_dns", "")
+  
   tags = local.tags
 }
 
@@ -227,6 +252,11 @@ module "prometheus_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "prometheus", "")
+  existing_role_arn = lookup(var.addon_role_arns, "prometheus", "")
+  
   tags = local.tags
 }
 
@@ -238,6 +268,11 @@ module "secrets_manager_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "secrets_manager", "")
+  existing_role_arn = lookup(var.addon_role_arns, "secrets_manager", "")
+  
   tags = local.tags
 }
 
@@ -249,6 +284,11 @@ module "cert_manager_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "cert_manager", "")
+  existing_role_arn = lookup(var.addon_role_arns, "cert_manager", "")
+  
   tags = local.tags
 }
 
@@ -260,6 +300,11 @@ module "nginx_ingress_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "nginx_ingress", "")
+  existing_role_arn = lookup(var.addon_role_arns, "nginx_ingress", "")
+  
   tags = local.tags
 }
 
@@ -271,6 +316,11 @@ module "adot_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "adot", "")
+  existing_role_arn = lookup(var.addon_role_arns, "adot", "")
+  
   tags = local.tags
 }
 
@@ -282,6 +332,11 @@ module "fluent_bit_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "fluent_bit", "")
+  existing_role_arn = lookup(var.addon_role_arns, "fluent_bit", "")
+  
   tags = local.tags
 }
 
@@ -293,6 +348,11 @@ module "ebs_csi_driver_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "ebs_csi_driver", "")
+  existing_role_arn = lookup(var.addon_role_arns, "ebs_csi_driver", "")
+  
   tags = local.tags
 }
 
@@ -304,6 +364,11 @@ module "efs_csi_driver_iam" {
   oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
+  # IAM role configuration
+  create_role       = var.create_addon_roles
+  role_name         = lookup(var.addon_role_names, "efs_csi_driver", "")
+  existing_role_arn = lookup(var.addon_role_arns, "efs_csi_driver", "")
+  
   tags = local.tags
 }
 
