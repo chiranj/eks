@@ -150,6 +150,25 @@ To add a new add-on to the Service Catalog product:
 2. Create a conditional IAM module for the add-on in `modules/add-ons/`
 3. Include the add-on data in the GitLab payload
 4. Add corresponding Helm chart and pipeline job in the GitLab repository
-
-"DecodedMessage": "{\"allowed\":false,\"explicitDeny\":true,\"matchedStatements\":{\"items\":[{\"statementId\":\"DenyVolumeTypegp2\",\"effect\":\"DENY\",\"principals\":{\"items\":[{\"value\":\"AROAYPXOM67G7A6BYFKN4:i-0da1b3e8ffe8e22b7\"}]},\"principalGroups\":{\"items\":[]},\"actions\":{\"items\":[{\"value\":\"ec2:RunInstances\"},{\"value\":\"ec2:CreateVolume\"},{\"value\":\"ec2:AttachVolume\"}]},\"resources\":{\"items\":[{\"value\":\"arn:aws:ec2:*:*:volume/*\"}]},\"conditions\":{\"items\":[{\"key\":\"ec2:VolumeType\",\"values\":{\"items\":[{\"value\":\"gp2\"}]}},{\"key\":\"aws:PrincipalAccount\",\"values\":{\"items\":[{\"value\":\"437457476573\"},{\"value\":\"526794972096\"},{\"value\":\"752028054762\"},{\"value\":\"474668381124\"}]}},{\"key\":\"aws:PrincipalArn\",\"values\":{\"items\":[{\"value\":\"arn:aws:iam::*:role/uspto-ssb/SCLaunch-EKSProduct\"}]}}]}},{\"statementId\":\"EC2VolumeDenyWithoutEncryption\",\"effect\":\"DENY\",\"principals\":{\"items\":[{\"value\":\"AROAYPXOM67G7A6BYFKN4:i-0da1b3e8ffe8e22b7\"}]},\"principalGroups\":{\"items\":[]},\"actions\":{\"items\":[{\"value\":\"ec2:CreateVolume\"},{\"value\":\"ec2:RunInstances\"}]},\"resources\":{\"items\":[{\"value\":\"*\"}]},\"conditions\":{\"items\":[{\"key\":\"ec2:Encrypted\",\"values\":{\"items\":[{\"value\":\"false\"}]}},{\"key\":\"aws:principalAccount\",\"values\":{\"items\":[{\"value\":\"500253342105\"},{\"value\":\"875688353437\"}]}}]}}]},\"failures\":{\"items\":[]},\"context\":{\"principal\":{\"id\":\"AROAYPXOM67G7A6BYFKN4:i-0da1b3e8ffe8e22b7\",\"arn\":\"arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7\"},\"action\":\"RunInstances\",\"resource\":\"arn:aws:ec2:us-east-1:583541782477:volume/*\",\"conditions\":{\"items\":[{\"key\":\"ec2:AvailabilityZoneId\",\"values\":{\"items\":[{\"value\":\"use1-az4\"}]}},{\"key\":\"aws:Resource\",\"values\":{\"items\":[{\"value\":\"volume/*\"}]}},{\"key\":\"aws:Account\",\"values\":{\"items\":[{\"value\":\"583541782477\"}]}},{\"key\":\"ec2:AvailabilityZone\",\"values\":{\"items\":[{\"value\":\"us-east-1b\"}]}},{\"key\":\"ec2:Encrypted\",\"values\":{\"items\":[{\"value\":\"false\"}]}},{\"key\":\"ec2:VolumeType\",\"values\":{\"items\":[{\"value\":\"gp2\"}]}},{\"key\":\"ec2:IsLaunchTemplateResource\",\"values\":{\"items\":[{\"value\":\"false\"}]}},{\"key\":\"aws:Region\",\"values\":{\"items\":[{\"value\":\"us-east-1\"}]}},{\"key\":\"aws:Service\",\"values\":{\"items\":[{\"value\":\"ec2\"}]}},{\"key\":\"ec2:VolumeID\",\"values\":{\"items\":[{\"value\":\"*\"}]}},{\"key\":\"ec2:VolumeSize\",\"values\":{\"items\":[{\"value\":\"20\"}]}},{\"key\":\"ec2:ParentSnapshot\",\"values\":{\"items\":[{\"value\":\"arn:aws:ec2:us-east-1::snapshot/snap-0ebdec2ff375dd779\"}]}},{\"key\":\"aws:Type\",\"values\":{\"items\":[{\"value\":\"volume\"}]}},{\"key\":\"ec2:Region\",\"values\":{\"items\":[{\"value\":\"us-east-1\"}]}},{\"key\":\"aws:ARN\",\"values\":{\"items\":[{\"value\":\"arn:aws:ec2:us-east-1:583541782477:volume/*\"}]}},{\"key\":\"ec2:LaunchTemplate\",\"values\":{\"items\":[{\"value\":\"arn:aws:ec2:us-east-1:583541782477:launch-template/lt-0e992ac319b1be0dc\"}]}}]}}}"
-
+Error: creating IAM Role (eks132-dev-adot): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: 952aafad-6adc-4527-b1b7-5654312b09b4, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/eks132-dev-adot with an explicit deny in an identity-based policy
+│ 
+│   with module.adot_iam[0].aws_iam_role.this,
+│   on modules/add-ons/adot/main.tf line 29, in resource "aws_iam_role" "this":
+│   29: resource "aws_iam_role" "this" {
+│ 
+╵
+╷
+│ Error: creating IAM Role (eks132-dev-aws-load-balancer-controller): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: 54533dce-93ac-4bad-bbb1-c9ee3359d1e7, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/eks132-dev-aws-load-balancer-controller with an explicit deny in an identity-based policy
+│ 
+│   with module.aws_load_balancer_controller_iam[0].aws_iam_role.this,
+│   on modules/add-ons/aws-loadbalancer-controller/main.tf line 29, in resource "aws_iam_role" "this":
+│   29: resource "aws_iam_role" "this" {
+│ 
+╵
+╷
+│ Error: creating IAM Role (eks132-dev-cert-manager): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: a92b57cd-035a-4da0-9591-0e5bf43c42b8, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/eks132-dev-cert-manager with an explicit deny in an identity-based policy
+│ 
+│   with module.cert_manager_iam[0].aws_iam_role.this,
+│   on modules/add-ons/cert-manager/main.tf line 29, in resource "aws_iam_role" "this":
+│   29: resource "aws_iam_role" "this" {
+│ 
