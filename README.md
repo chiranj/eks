@@ -150,3 +150,6 @@ To add a new add-on to the Service Catalog product:
 2. Create a conditional IAM module for the add-on in `modules/add-ons/`
 3. Include the add-on data in the GitLab payload
 4. Add corresponding Helm chart and pipeline job in the GitLab repository
+
+
+aws dynamodb delete-item --table-name your_lock_table_name --key '{\"LockID\": {\"S\": \"your_lock_id\"}}'
