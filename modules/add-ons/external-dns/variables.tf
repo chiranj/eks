@@ -49,3 +49,9 @@ variable "domain" {
   type        = string
   default     = ""
 }
+
+variable "iam_role_provider" {
+  description = "AWS provider to use for IAM role and policy creation"
+  type        = any
+  default     = null
+}

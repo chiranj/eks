@@ -277,3 +277,9 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "iam_admin_role_arn" {
+  description = "ARN of IAM role with permissions to create IAM roles and policies for add-ons"
+  type        = string
+  default     = ""
+}

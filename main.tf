@@ -8,6 +8,19 @@ provider "aws" {
   region = var.region
 }
 
+# Provider for IAM admin role with permissions to create IAM roles and policies
+provider "aws" {
+  alias  = "iam_admin"
+  region = var.region
+  
+  dynamic "assume_role" {
+    for_each = var.iam_admin_role_arn != "" ? [1] : []
+    content {
+      role_arn = var.iam_admin_role_arn
+    }
+  }
+}
+
 # Get current AWS account ID for OIDC provider ARN construction
 data "aws_caller_identity" "current" {}
 
@@ -173,6 +186,8 @@ module "aws_load_balancer_controller_iam" {
   create_role       = var.create_addon_roles
   role_name         = lookup(var.addon_role_names, "aws_load_balancer_controller", "")
   existing_role_arn = lookup(var.addon_role_arns, "aws_load_balancer_controller", "")
+  
+  # Use the IAM admin provider if a role ARN is provided
 
   tags = local.tags
 }
@@ -190,6 +205,8 @@ module "karpenter_iam" {
   role_name         = lookup(var.addon_role_names, "karpenter", "")
   existing_role_arn = lookup(var.addon_role_arns, "karpenter", "")
   
+  # Use the IAM admin provider if a role ARN is provided
+  
   tags = local.tags
 }
 
@@ -206,6 +223,8 @@ module "cluster_autoscaler_iam" {
   role_name         = lookup(var.addon_role_names, "cluster_autoscaler", "")
   existing_role_arn = lookup(var.addon_role_arns, "cluster_autoscaler", "")
   
+  # Use the IAM admin provider if a role ARN is provided
+  
   tags = local.tags
 }
 
@@ -221,6 +240,8 @@ module "keda_iam" {
   create_role       = var.create_addon_roles
   role_name         = lookup(var.addon_role_names, "keda", "")
   existing_role_arn = lookup(var.addon_role_arns, "keda", "")
+  
+  # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
 }
@@ -242,6 +263,8 @@ module "external_dns_iam" {
   role_name         = lookup(var.addon_role_names, "external_dns", "")
   existing_role_arn = lookup(var.addon_role_arns, "external_dns", "")
   
+  # Use the IAM admin provider if a role ARN is provided
+  
   tags = local.tags
 }
 
@@ -256,6 +279,8 @@ module "prometheus_iam" {
   create_role       = var.create_addon_roles
   role_name         = lookup(var.addon_role_names, "prometheus", "")
   existing_role_arn = lookup(var.addon_role_arns, "prometheus", "")
+  
+  # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
 }
@@ -273,6 +298,8 @@ module "secrets_manager_iam" {
   role_name         = lookup(var.addon_role_names, "secrets_manager", "")
   existing_role_arn = lookup(var.addon_role_arns, "secrets_manager", "")
   
+  # Use the IAM admin provider if a role ARN is provided
+  
   tags = local.tags
 }
 
@@ -288,6 +315,8 @@ module "cert_manager_iam" {
   create_role       = var.create_addon_roles
   role_name         = lookup(var.addon_role_names, "cert_manager", "")
   existing_role_arn = lookup(var.addon_role_arns, "cert_manager", "")
+  
+  # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
 }
@@ -305,6 +334,8 @@ module "nginx_ingress_iam" {
   role_name         = lookup(var.addon_role_names, "nginx_ingress", "")
   existing_role_arn = lookup(var.addon_role_arns, "nginx_ingress", "")
   
+  # Use the IAM admin provider if a role ARN is provided
+  
   tags = local.tags
 }
 
@@ -320,6 +351,8 @@ module "adot_iam" {
   create_role       = var.create_addon_roles
   role_name         = lookup(var.addon_role_names, "adot", "")
   existing_role_arn = lookup(var.addon_role_arns, "adot", "")
+  
+  # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
 }
@@ -337,6 +370,8 @@ module "fluent_bit_iam" {
   role_name         = lookup(var.addon_role_names, "fluent_bit", "")
   existing_role_arn = lookup(var.addon_role_arns, "fluent_bit", "")
   
+  # Use the IAM admin provider if a role ARN is provided
+  
   tags = local.tags
 }
 
@@ -353,6 +388,8 @@ module "ebs_csi_driver_iam" {
   role_name         = lookup(var.addon_role_names, "ebs_csi_driver", "")
   existing_role_arn = lookup(var.addon_role_arns, "ebs_csi_driver", "")
   
+  # Use the IAM admin provider if a role ARN is provided
+  
   tags = local.tags
 }
 
@@ -368,6 +405,8 @@ module "efs_csi_driver_iam" {
   create_role       = var.create_addon_roles
   role_name         = lookup(var.addon_role_names, "efs_csi_driver", "")
   existing_role_arn = lookup(var.addon_role_arns, "efs_csi_driver", "")
+  
+  # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
 }
