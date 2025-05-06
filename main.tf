@@ -39,6 +39,8 @@ locals {
     {
       "ClusterName" = local.name
       "ManagedBy"   = "terraform"
+      # Organization-required tag to satisfy IAM policy
+      "ComponentID" = "true"
     }
   )
 }

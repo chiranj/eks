@@ -44,7 +44,16 @@ locals {
       
       # Labels and tags
       labels = lookup(group, "labels", {})
-      tags   = lookup(group, "tags", {})
+      
+      # Add required organizational tags
+      # The error message shows a requirement for ComponentID tag
+      tags = merge(
+        lookup(group, "tags", {}),
+        {
+          # Required per organization policy "DenyWithNoCompTag"
+          "ComponentID" = "true"
+        }
+      )
       
       # Handle custom AMI - use custom_ami_id to let EKS create the launch template
       # When using custom_ami_id, ami_type must be null
@@ -124,6 +133,16 @@ module "eks" {
   cluster_enabled_log_types              = ["api", "audit", "authenticator"]
   cluster_security_group_name            = "${local.name}-cluster-sg"
   node_security_group_name               = "${local.name}-node-sg"
+  
+  # Organizational tagging requirements
+  # The decoded error shows we need a ComponentID tag on EC2 resources
+  eks_managed_node_group_defaults = {
+    # Ensure tags are added to all resources created for node groups
+    # This addresses the organization policy "DenyWithNoCompTag"
+    tags = {
+      "ComponentID" = "true"
+    }
+  }
   
   # Use our simplified managed node groups configuration
   # This lets EKS handle launch template creation with proper permissions
