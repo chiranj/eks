@@ -7,11 +7,17 @@ cluster_name   = "eks-prod"
 cluster_version = "1.29"
 
 # IAM role configuration
-# In environments with IAM restrictions, set to false and provide an existing role
+# In environments with IAM restrictions, set to false and provide existing roles
 create_cluster_iam_role = false
 # Specify existing cluster role if create_cluster_iam_role = false
 # This is the IAM role that the EKS service itself will use
 cluster_iam_role_arn = "arn:aws:iam::123456789012:role/my-existing-eks-cluster-role"
+
+# Node IAM role configuration
+create_node_iam_role = false
+# Specify existing node role if create_node_iam_role = false
+# This is the IAM role that all worker nodes will use
+node_iam_role_arn = "arn:aws:iam::123456789012:role/my-existing-eks-node-role"
 
 # VPC configuration (use existing VPC)
 vpc_mode      = "existing"

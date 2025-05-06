@@ -110,9 +110,11 @@ module "eks_cluster" {
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
   eks_access_entries              = local.eks_access_entries_with_gitlab
   
-  # IAM role configuration - use pre-created cluster role if specified
+  # IAM role configuration - use pre-created roles if specified
   create_cluster_iam_role         = var.create_cluster_iam_role
   cluster_iam_role_arn            = var.cluster_iam_role_arn
+  create_node_iam_role            = var.create_node_iam_role
+  node_iam_role_arn               = var.node_iam_role_arn
 
   # Node Groups with optional custom AMI
   eks_managed_node_groups = {

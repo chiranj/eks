@@ -15,6 +15,18 @@ variable "cluster_iam_role_arn" {
   default     = ""
 }
 
+variable "create_node_iam_role" {
+  description = "Controls if the EKS node IAM role should be created by Terraform"
+  type        = bool
+  default     = true
+}
+
+variable "node_iam_role_arn" {
+  description = "Existing IAM role ARN for the EKS node groups (required if create_node_iam_role is false)"
+  type        = string
+  default     = ""
+}
+
 variable "cluster_version" {
   description = "Kubernetes version to use for the EKS cluster"
   type        = string

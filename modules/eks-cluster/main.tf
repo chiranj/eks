@@ -30,6 +30,13 @@ locals {
         # Connect to the launch template we'll create
         launch_template_name    = aws_launch_template.custom_ami[name].name
         launch_template_version = aws_launch_template.custom_ami[name].latest_version
+      } : {},
+      
+      # If using pre-created IAM role, ensure we pass through the IAM role config
+      # This allows the eks_managed_node_group_defaults to take effect
+      !var.create_node_iam_role ? {
+        # We do not override these here since eks_managed_node_group_defaults will handle it
+        # Any explicit IAM role settings would be added here if needed
       } : {}
     )
   }
@@ -96,12 +103,24 @@ module "eks" {
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
 
-  # IAM role configuration for cluster only
+  # IAM role configuration for cluster
   create_iam_role                 = var.create_cluster_iam_role
   iam_role_arn                    = var.create_cluster_iam_role ? null : var.cluster_iam_role_arn
   
-  # Always create node roles
+  # Always create security group
   create_node_security_group      = true
+  
+  # Configure node groups to use existing IAM role if specified
+  eks_managed_node_group_defaults = merge(
+    var.create_node_iam_role ? {} : {
+      create_iam_role = false
+      iam_role_arn    = var.node_iam_role_arn
+    },
+    {
+      # Fix for iam_role_additional_policies type mismatch
+      iam_role_additional_policies = {}
+    }
+  )
   
   # Use the prepared node group configs with proper launch template handling
   eks_managed_node_groups = local.eks_managed_node_group_configs
