@@ -8,6 +8,9 @@ provider "aws" {
   region = var.region
 }
 
+# Get current AWS account ID for OIDC provider ARN construction
+data "aws_caller_identity" "current" {}
+
 locals {
   name       = var.cluster_name
   create_vpc = var.vpc_mode == "create_new"
@@ -149,14 +152,13 @@ module "eks_cluster" {
   tags = local.tags
 }
 
-# OIDC Provider for EKS
-module "eks_oidc_provider" {
-  source = "./modules/oidc-provider"
-
-  cluster_name = module.eks_cluster.cluster_name
-  oidc_url     = module.eks_cluster.cluster_oidc_issuer_url
-
-  tags = local.tags
+# OIDC Provider Configuration
+# The EKS module creates the OIDC provider automatically when enable_irsa = true
+# We use the OIDC provider ARN output from the EKS module rather than creating another one
+# This avoids the "EntityAlreadyExists: Provider with url https://oidc.eks.us-east-1.amazonaws.com/... already exists" error
+locals {
+  # Use the OIDC provider created by the EKS module
+  oidc_provider_arn = module.eks_cluster.cluster_oidc_issuer_url != null ? "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/${trimprefix(module.eks_cluster.cluster_oidc_issuer_url, "https://")}" : null
 }
 
 # Conditional IAM Roles for Add-ons
@@ -164,7 +166,7 @@ module "aws_load_balancer_controller_iam" {
   source = "./modules/add-ons/aws-loadbalancer-controller"
   count  = local.addons_enabled.aws_load_balancer_controller ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -175,7 +177,7 @@ module "karpenter_iam" {
   source = "./modules/add-ons/karpenter"
   count  = local.addons_enabled.karpenter ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -186,7 +188,7 @@ module "cluster_autoscaler_iam" {
   source = "./modules/add-ons/cluster-autoscaler"
   count  = local.addons_enabled.cluster_autoscaler ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -197,7 +199,7 @@ module "keda_iam" {
   source = "./modules/add-ons/keda"
   count  = local.addons_enabled.keda ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -207,7 +209,7 @@ module "external_dns_iam" {
   source = "./modules/add-ons/external-dns"
   count  = local.addons_enabled.external_dns ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   # Hosted zone configuration
@@ -222,7 +224,7 @@ module "prometheus_iam" {
   source = "./modules/add-ons/prometheus"
   count  = local.addons_enabled.prometheus ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -233,7 +235,7 @@ module "secrets_manager_iam" {
   source = "./modules/add-ons/secrets-manager"
   count  = local.addons_enabled.secrets_manager ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -244,7 +246,7 @@ module "cert_manager_iam" {
   source = "./modules/add-ons/cert-manager"
   count  = local.addons_enabled.cert_manager ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -255,7 +257,7 @@ module "nginx_ingress_iam" {
   source = "./modules/add-ons/nginx-ingress"
   count  = local.addons_enabled.nginx_ingress ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -266,7 +268,7 @@ module "adot_iam" {
   source = "./modules/add-ons/adot"
   count  = local.addons_enabled.adot ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -277,7 +279,7 @@ module "fluent_bit_iam" {
   source = "./modules/add-ons/fluent-bit"
   count  = local.addons_enabled.fluent_bit ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -288,7 +290,7 @@ module "ebs_csi_driver_iam" {
   source = "./modules/add-ons/ebs-csi-driver"
   count  = local.addons_enabled.ebs_csi_driver ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -299,7 +301,7 @@ module "efs_csi_driver_iam" {
   source = "./modules/add-ons/efs-csi-driver"
   count  = local.addons_enabled.efs_csi_driver ? 1 : 0
 
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
   cluster_name      = module.eks_cluster.cluster_name
 
   tags = local.tags
@@ -315,7 +317,7 @@ module "gitlab_integration" {
   cluster_name      = module.eks_cluster.cluster_name
   cluster_endpoint  = module.eks_cluster.cluster_endpoint
   cluster_ca_data   = module.eks_cluster.cluster_certificate_authority_data
-  oidc_provider_arn = module.eks_oidc_provider.oidc_provider_arn
+  oidc_provider_arn = local.oidc_provider_arn
 
   # Add-on selections and IAM roles
   addons_config = {
@@ -389,7 +391,6 @@ module "gitlab_integration" {
 
   depends_on = [
     module.eks_cluster,
-    module.eks_oidc_provider,
     module.aws_load_balancer_controller_iam,
     module.karpenter_iam,
     module.cluster_autoscaler_iam,

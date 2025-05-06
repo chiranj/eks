@@ -25,8 +25,8 @@ output "cluster_oidc_issuer_url" {
 }
 
 output "oidc_provider_arn" {
-  description = "The ARN of the OIDC Provider"
-  value       = module.eks_oidc_provider.oidc_provider_arn
+  description = "The ARN of the OIDC Provider for the EKS cluster"
+  value       = local.oidc_provider_arn
 }
 
 output "enabled_addons" {

@@ -203,7 +203,9 @@ module "eks" {
     }
   }
 
-  # Enable OIDC provider
+  # Enable OIDC provider for IAM Roles for Service Accounts (IRSA)
+  # This creates an IAM OIDC provider for the cluster
+  # The root module uses this OIDC provider for all add-on IAM roles
   enable_irsa = true
 
   tags = var.tags
