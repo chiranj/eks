@@ -49,15 +49,17 @@ locals {
     efs_csi_driver               = var.enable_efs_csi_driver
   }
 
+  # ComponentID tag that can be enabled/disabled
+  component_id_tag = var.component_id_enabled ? { "ComponentID" = var.component_id } : {}
+
   # Tags
   tags = merge(
     var.tags,
     {
       "ClusterName" = local.name
       "ManagedBy"   = "terraform"
-      # Organization-required tag to satisfy IAM policy
-      "ComponentID" = var.component_id
-    }
+    },
+    local.component_id_tag  # Add ComponentID tag conditionally
   )
 }
 

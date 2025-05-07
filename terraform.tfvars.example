@@ -172,6 +172,7 @@ gitlab_aws_role_arn = "arn:aws:iam::123456789012:role/MyGitLabDeploymentRole"
 
 # Organization policy required tag
 component_id = "aws-eks-cluster"  # Required by organizational policy "DenyWithNoCompTag"
+component_id_enabled = true       # Set to false to disable the ComponentID tag if needed
 
 # IAM Admin Role for Add-on IAM Resources
 # Specify a role ARN with permissions to create IAM roles and policies

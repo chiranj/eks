@@ -92,9 +92,9 @@ EOT
         {
           Name        = lookup(group, "name", name)
           ClusterName = local.name
-          ComponentID = var.component_id
           ManagedBy   = "terraform"
-        }
+        },
+        var.component_id != "" ? { ComponentID = var.component_id } : {}
       )
     }
   }
@@ -208,9 +208,12 @@ module "eks" {
   eks_managed_node_group_defaults = {
     # Ensure tags are added to all resources created for node groups
     # This addresses the organization policy "DenyWithNoCompTag"
-    tags = {
-      "ComponentID" = var.component_id
-    }
+    tags = merge(
+      {
+        "ManagedBy" = "terraform"
+      },
+      var.component_id != "" ? { "ComponentID" = var.component_id } : {}
+    )
 
     # All node groups will use custom launch templates
     use_custom_launch_template = true
@@ -234,7 +237,45 @@ module "eks" {
         block_device_mappings           = try(local.custom_launch_templates[name].block_device_mappings, {})
         metadata_options                = try(local.custom_launch_templates[name].metadata_options, {})
         monitoring                      = try(local.custom_launch_templates[name].monitoring, {})
-        tag_specifications              = try(local.custom_launch_templates[name].tag_specifications, [])
+        # Explicit tag specifications for all resources created by the launch template
+        tag_specifications = [
+          {
+            resource_type = "instance"
+            tags = merge(
+              lookup(group, "tags", {}),
+              {
+                "Name"        = lookup(group, "name", name)
+                "ClusterName" = local.name
+                "ManagedBy"   = "terraform"
+              },
+              var.component_id != "" ? { "ComponentID" = var.component_id } : {}
+            )
+          },
+          {
+            resource_type = "volume"
+            tags = merge(
+              lookup(group, "tags", {}),
+              {
+                "Name"        = lookup(group, "name", name)
+                "ClusterName" = local.name
+                "ManagedBy"   = "terraform"
+              },
+              var.component_id != "" ? { "ComponentID" = var.component_id } : {}
+            )
+          },
+          {
+            resource_type = "network-interface"
+            tags = merge(
+              lookup(group, "tags", {}),
+              {
+                "Name"        = lookup(group, "name", name)
+                "ClusterName" = local.name
+                "ManagedBy"   = "terraform"
+              },
+              var.component_id != "" ? { "ComponentID" = var.component_id } : {}
+            )
+          }
+        ]
       }
     )
   }

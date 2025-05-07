@@ -254,6 +254,12 @@ variable "component_id" {
   default     = "true"
 }
 
+variable "component_id_enabled" {
+  description = "Whether to enable the ComponentID tag required by organizational policy"
+  type        = bool
+  default     = true
+}
+
 variable "create_addon_roles" {
   description = "Whether to create IAM roles for add-ons. Set to false to use existing roles"
   type        = bool
