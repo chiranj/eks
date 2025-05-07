@@ -152,31 +152,8 @@ To add a new add-on to the Service Catalog product:
 4. Add corresponding Helm chart and pipeline job in the GitLab repository
 Error: creating IAM Role (eks132-dev-adot): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: 952aafad-6adc-4527-b1b7-5654312b09b4, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/eks132-dev-adot with an explicit deny in an identity-based policy
 Error: Cannot assume IAM Role
-│ 
-│   with provider["registry.terraform.io/hashicorp/aws"].iam_admin,
-│   on main.tf line 12, in provider "aws":
-│   12: provider "aws" {
-│ 
-│ IAM Role
-│ (arn:aws:iam::583541782477:role/uspto-dev/aws-psb-lab-service-role-1)
-│ cannot be assumed.
-│ 
-│ There are a number of possible causes of this - the most common are:
-│   * The credentials used in order to assume the role are invalid
-│   * The credentials do not have appropriate permission to assume the role
-│   * The role ARN is not valid
-│ 
-│ Error: operation error STS: AssumeRole, https response error StatusCode:
-│ 403, RequestID: f5607b47-5223-4c76-b2b5-93f1b3e5684b, api error
-│ AccessDenied: User:
-│ arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7
-│ is not authorized to perform: sts:AssumeRole on resource:
-│ arn:aws:iam::583541782477:role/uspto-dev/aws-psb-lab-service-role-1
-│ 
 
 
-Error: creating IAM Role (eks132-dev-secrets-manager): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: 58e73745-da05-4174-8cb0-2586f4cd03a3, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/eks132-dev-secrets-manager with an explicit deny in an identity-based policy
-│ 
-│   with module.secrets_manager_iam[0].aws_iam_role.this[0],
-│   on modules/add-ons/secrets-manager/main.tf line 33, in resource "aws_iam_role" "this":
-│   33: resource "aws_iam_role" "this" {
+
+
+ "DecodedMessage": "{\"allowed\":false,\"explicitDeny\":true,\"matchedStatements\":{\"items\":[{\"statementId\":\"DenyWithNoCompTag\",\"effect\":\"DENY\",\"principals\":{\"items\":[{\"value\":\"AROAYPXOM67G7A6BYFKN4:i-0da1b3e8ffe8e22b7\"}]},\"principalGroups\":{\"items\":[]},\"actions\":{\"items\":[{\"value\":\"ec2:RunInstances\"},{\"value\":\"ec2:CreateVolume\"}]},\"resources\":{\"items\":[{\"value\":\"arn:aws:ec2:*:*:instance/*\"},{\"value\":\"arn:aws:ec2:*:*:volume/*\"}]},\"conditions\":{\"items\":[{\"key\":\"aws:RequestTag/ComponentID\",\"values\":{\"items\":[{\"value\":\"true\"}]}},{\"key\":\"aws:PrincipalAccount\",\"values\":{\"items\":[{\"value\":\"108673741149\"},{\"value\":\"437457476573\"}]}},{\"key\":\"aws:PrincipalArn\",\"values\":{\"items\":[{\"value\":\"arn:aws:iam::*:role/uspto-ssb/SCLaunch-EKSProduct\"}]}}]}}]},\"failures\":{\"items\":[]},\"context\":{\"principal\":{\"id\":\"AROAYPXOM67G7A6BYFKN4:i-0da1b3e8ffe8e22b7\",\"arn\":\"arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7\"},\"action\":\"RunInstances\",\"resource\":\"arn:aws:ec2:us-east-1:583541782477:instance/*\",\"conditions\":{\"items\":[{\"key\":\"ec2:AvailabilityZoneId\",\"values\":{\"items\":[{\"value\":\"use1-az4\"}]}},{\"key\":\"ec2:MetadataHttpPutResponseHopLimit\",\"values\":{\"items\":[{\"value\":\"2\"}]}},{\"key\":\"ec2:InstanceMarketType\",\"values\":{\"items\":[{\"value\":\"on-demand\"}]}},{\"key\":\"aws:Resource\",\"values\":{\"items\":[{\"value\":\"instance/*\"}]}},{\"key\":\"aws:Account\",\"values\":{\"items\":[{\"value\":\"583541782477\"}]}},{\"key\":\"ec2:AvailabilityZone\",\"values\":{\"items\":[{\"value\":\"us-east-1b\"}]}},{\"key\":\"ec2:ebsOptimized\",\"values\":{\"items\":[{\"value\":\"false\"}]}},{\"key\":\"ec2:InstanceBandwidthWeighting\",\"values\":{\"items\":[{\"value\":\"default\"}]}},{\"key\":\"ec2:IsLaunchTemplateResource\",\"values\":{\"items\":[{\"value\":\"true\"}]}},{\"key\":\"ec2:InstanceType\",\"values\":{\"items\":[{\"value\":\"m5.large\"}]}},{\"key\":\"ec2:RootDeviceType\",\"values\":{\"items\":[{\"value\":\"ebs\"}]}},{\"key\":\"aws:Region\",\"values\":{\"items\":[{\"value\":\"us-east-1\"}]}},{\"key\":\"ec2:MetadataHttpEndpoint\",\"values\":{\"items\":[{\"value\":\"enabled\"}]}},{\"key\":\"ec2:InstanceMetadataTags\",\"values\":{\"items\":[{\"value\":\"disabled\"}]}},{\"key\":\"aws:Service\",\"values\":{\"items\":[{\"value\":\"ec2\"}]}},{\"key\":\"ec2:InstanceID\",\"values\":{\"items\":[{\"value\":\"*\"}]}},{\"key\":\"ec2:MetadataHttpTokens\",\"values\":{\"items\":[{\"value\":\"required\"}]}},{\"key\":\"aws:ResourceBeingCreated\",\"values\":{\"items\":[{\"value\":\"true\"}]}},{\"key\":\"aws:Type\",\"values\":{\"items\":[{\"value\":\"instance\"}]}},{\"key\":\"ec2:Tenancy\",\"values\":{\"items\":[{\"value\":\"default\"}]}},{\"key\":\"ec2:Region\",\"values\":{\"items\":[{\"value\":\"us-east-1\"}]}},{\"key\":\"aws:ARN\",\"values\":{\"items\":[{\"value\":\"arn:aws:ec2:us-east-1:583541782477:instance/*\"}]}},{\"key\":\"ec2:LaunchTemplate\",\"values\":{\"items\":[{\"value\":\"arn:aws:ec2:us-east-1:583541782477:launch-template/lt-0fb021b38b01c7640\"}]}}]}}}"
