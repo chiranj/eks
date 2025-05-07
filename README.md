@@ -173,3 +173,10 @@ Error: Cannot assume IAM Role
 │ is not authorized to perform: sts:AssumeRole on resource:
 │ arn:aws:iam::583541782477:role/uspto-dev/aws-psb-lab-service-role-1
 │ 
+
+
+Error: creating IAM Role (eks132-dev-secrets-manager): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: 58e73745-da05-4174-8cb0-2586f4cd03a3, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/eks132-dev-secrets-manager with an explicit deny in an identity-based policy
+│ 
+│   with module.secrets_manager_iam[0].aws_iam_role.this[0],
+│   on modules/add-ons/secrets-manager/main.tf line 33, in resource "aws_iam_role" "this":
+│   33: resource "aws_iam_role" "this" {
