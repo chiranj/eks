@@ -23,6 +23,7 @@ data "aws_iam_policy_document" "efs_csi" {
 }
 
 resource "aws_iam_policy" "efs_csi" {
+  provider = aws.iam_admin
   name        = "${var.cluster_name}-AmazonEFSCSIDriverPolicy"
   description = "IAM policy for Amazon EFS CSI Driver"
 
@@ -69,12 +70,14 @@ resource "aws_iam_policy" "efs_csi" {
 }
 
 resource "aws_iam_role" "efs_csi" {
+  provider = aws.iam_admin
   assume_role_policy = data.aws_iam_policy_document.efs_csi.json
   name               = "${var.cluster_name}-efs-csi-driver"
   tags               = var.tags
 }
 
 resource "aws_iam_role_policy_attachment" "efs_csi_attachment" {
+  provider = aws.iam_admin
   policy_arn = aws_iam_policy.efs_csi.arn
   role       = aws_iam_role.efs_csi.name
 }

@@ -176,8 +176,46 @@ component_id = "aws-eks-cluster"  # Required by organizational policy "DenyWithN
 
 # IAM Admin Role for Add-on IAM Resources
 # Specify a role ARN with permissions to create IAM roles and policies
-# This role will be used exclusively for creating add-on IAM resources
-# Leave empty to use the default caller identity
+# This role will be used exclusively for creating add-on IAM resources when 
+# your GitLab runner role has an explicit deny for IAM role creation
+# How it works:
+# 1. The module will create an AWS provider alias that assumes this role
+# 2. All IAM resources in add-on modules will use this provider
+# 3. Regular resources continue to use the default provider (GitLab runner role)
+# 
+# The role should have these permissions:
+# - iam:CreateRole
+# - iam:PutRolePolicy
+# - iam:CreatePolicy 
+# - iam:AttachRolePolicy
+# 
+# Example policy for this role:
+# {
+#   "Version": "2012-10-17",
+#   "Statement": [
+#     {
+#       "Effect": "Allow",
+#       "Action": [
+#         "iam:CreateRole",
+#         "iam:DeleteRole",
+#         "iam:PutRolePolicy",
+#         "iam:DeleteRolePolicy",
+#         "iam:CreatePolicy",
+#         "iam:DeletePolicy",
+#         "iam:AttachRolePolicy",
+#         "iam:DetachRolePolicy",
+#         "iam:TagRole",
+#         "iam:TagPolicy"
+#       ],
+#       "Resource": "*",
+#       "Condition": {
+#         "StringEquals": {
+#           "aws:ResourceTag/ManagedBy": "terraform"
+#         }
+#       }
+#     }
+#   ]
+# }
 iam_admin_role_arn = "arn:aws:iam::123456789012:role/IAMAdminRole"
 
 # IAM role creation control

@@ -56,6 +56,7 @@ data "aws_iam_policy_document" "this" {
 }
 
 resource "aws_iam_role" "this" {
+  provider = aws.iam_admin
   
   count              = local.create_resources ? 1 : 0
   name        = "${var.cluster_name}-${local.name}"
@@ -64,6 +65,7 @@ resource "aws_iam_role" "this" {
 }
 
 resource "aws_iam_policy" "this" {
+  provider = aws.iam_admin
   
   count       = local.create_resources ? 1 : 0
   name        = "${var.cluster_name}-${local.name}"
@@ -95,6 +97,7 @@ resource "aws_iam_policy" "this" {
 }
 
 resource "aws_iam_role_policy_attachment" "this" {
+  provider = aws.iam_admin
   
   count      = local.create_resources ? 1 : 0
   role       = aws_iam_role.this[0].name

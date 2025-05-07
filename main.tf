@@ -190,6 +190,10 @@ module "aws_load_balancer_controller_iam" {
   # Use the IAM admin provider if a role ARN is provided
 
   tags = local.tags
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # Karpenter IAM Role (mutually exclusive with Cluster Autoscaler)
@@ -208,6 +212,10 @@ module "karpenter_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # Cluster Autoscaler IAM Role (mutually exclusive with Karpenter)
@@ -226,6 +234,11 @@ module "cluster_autoscaler_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # KEDA IAM Role
@@ -244,6 +257,10 @@ module "keda_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 module "external_dns_iam" {
@@ -266,6 +283,11 @@ module "external_dns_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 module "prometheus_iam" {
@@ -283,6 +305,10 @@ module "prometheus_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # AWS Secrets & Configuration Provider (ASCP)
@@ -301,6 +327,11 @@ module "secrets_manager_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # Cert Manager
@@ -316,9 +347,12 @@ module "cert_manager_iam" {
   role_name         = lookup(var.addon_role_names, "cert_manager", "")
   existing_role_arn = lookup(var.addon_role_arns, "cert_manager", "")
   
-  # Use the IAM admin provider if a role ARN is provided
-  
   tags = local.tags
+
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # NGINX Ingress Controller
@@ -337,6 +371,11 @@ module "nginx_ingress_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # AWS Distro for OpenTelemetry (ADOT)
@@ -355,6 +394,10 @@ module "adot_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # Fluent Bit
@@ -373,6 +416,11 @@ module "fluent_bit_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # Amazon EBS CSI Driver
@@ -391,6 +439,11 @@ module "ebs_csi_driver_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # Amazon EFS CSI Driver
@@ -409,6 +462,11 @@ module "efs_csi_driver_iam" {
   # Use the IAM admin provider if a role ARN is provided
   
   tags = local.tags
+
+  providers = {
+    aws = aws
+    aws.iam_admin = aws.iam_admin
+  }
 }
 
 # GitLab Pipeline Integration
