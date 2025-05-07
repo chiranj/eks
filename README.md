@@ -173,3 +173,38 @@ SUBNET_ID=$(aws ec2 describe-instances --instance-ids your-instance-id --query "
 # Check route table associated with this subnet
 ROUTE_TABLE_ID=$(aws ec2 describe-route-tables --filters "Name=association.subnet-id,Values=$SUBNET_ID" --query "RouteTables[0].RouteTableId" --output text)
 aws ec2 describe-route-tables --route-table-ids $ROUTE_TABLE_ID
+
+
+
+
+
+
+# Check Transit Gateway route tables
+aws ec2 describe-transit-gateway-route-tables --filters Name=transit-gateway-id,Values=tgw-0b812ae5f901d9a1c
+
+# Check specific route table
+aws ec2 get-transit-gateway-route-table-associations --transit-gateway-route-table-id YOUR_TGW_RTB_ID
+
+# Check if you have EKS VPC endpoints
+aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=YOUR_VPC_ID" "Name=service-name,Values=com.amazonaws.YOUR_REGION.eks"
+
+# Check if your EKS cluster is private-only
+aws eks describe-cluster --name YOUR_CLUSTER_NAME --query "cluster.resourcesVpcConfig.endpointPrivateAccess"
+
+aws eks describe-cluster --name your-cluster-name --query "cluster.resourcesVpcConfig.{PublicAccess:endpointPublicAccess,PrivateAccess:endpointPrivateAccess}"
+
+
+# First get your EKS cluster's VPC ID
+VPC_ID=$(aws eks describe-cluster --name your-cluster-name --query "cluster.resourcesVpcConfig.vpcId" --output text)
+
+# Then check for EKS VPC endpoints in that VPC
+aws ec2 describe-vpc-endpoints \
+  --filters "Name=vpc-id,Values=$VPC_ID" "Name=service-name,Values=com.amazonaws.region.eks*"
+
+
+  aws ec2 describe-managed-prefix-lists --prefix-list-ids pl-63a5400a
+
+
+  aws ec2 describe-vpc-endpoint-services \
+  --filter "Name=service-name,Values=com.amazonaws.region.eks*" \
+  --query "ServiceDetails[*].{Name:ServiceName,Type:ServiceType}"
