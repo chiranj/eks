@@ -78,12 +78,11 @@ eks_managed_node_groups = {
 node_group_ami_id = "ami-0123456789abcdef0"
 
 # Custom AMI usage:
-# To use custom AMIs with your EKS node groups, simply specify the custom_ami_id in your node groups:
+# To use custom AMIs with your EKS node groups, simply specify the ami_id in your node groups:
 # eks_managed_node_groups = {
 #   custom-group = {
-#     custom_ami_id = "ami-0123456789abcdef0"
-#     # When using custom_ami_id, ami_type must be null
-#     ami_type = null
+#     ami_id = "ami-0123456789abcdef0"
+#     # When using ami_id with custom launch templates
 #     
 #     # Block device mappings - REQUIRED for organizational policies
 #     # Must use gp3 (not gp2) and enable encryption
@@ -105,13 +104,13 @@ node_group_ami_id = "ami-0123456789abcdef0"
 # }
 #
 # The module will automatically:
-# 1. Have the EKS service create properly authorized launch templates
+# 1. Create custom launch templates with the specified AMI
 # 2. Configure user data with the right bootstrap scripts
 # 3. Set proper tags and metadata configuration
 # 4. Configure volumes to use gp3 (not gp2) and enable encryption
 #
-# This approach doesn't require any special permissions for launch templates
-# and should resolve the "not authorized to use launch template" error.
+# This approach uses custom launch templates that YOU control
+# Your node IAM role needs the proper EC2 permissions.
 #
 # ADVANCED USAGE (RARELY NEEDED): Pre-created launch templates
 # Most users should NOT need this - the default approach above is simpler and more reliable.

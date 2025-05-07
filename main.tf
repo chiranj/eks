@@ -136,18 +136,17 @@ module "eks_cluster" {
   node_iam_role_arn       = var.node_iam_role_arn
 
   # =================================================================
-  # ROLLBACK POINT: Using EKS-managed node groups with directly specified custom_ami_id
+  # RESTORED: Using custom launch templates with directly specified ami_id
   # =================================================================
   
   # Node Groups with optional custom AMI
-  # We use custom_ami_id to let EKS handle launch template creation with proper permissions
+  # We now use custom launch templates with ami_id instead of custom_ami_id
   eks_managed_node_groups = {
     for name, group in var.eks_managed_node_groups : name => merge(
       group,
-      var.node_group_ami_id != "" && !contains(keys(group), "custom_ami_id") ? {
-        # Set custom_ami_id and make sure ami_type is null when using custom AMI
-        custom_ami_id = var.node_group_ami_id
-        ami_type = null
+      var.node_group_ami_id != "" && !contains(keys(group), "ami_id") ? {
+        # Set ami_id for custom launch templates
+        ami_id = var.node_group_ami_id
       } : {}
     )
   }
@@ -156,9 +155,7 @@ module "eks_cluster" {
   service_ipv4_cidr = var.service_ipv4_cidr
   cluster_ip_family = var.cluster_ip_family
 
-  # We're now letting the EKS module handle launch template creation
-  # Only passing these variables for the rare case where someone wants to use
-  # a pre-created launch template instead of having the module create one
+  # Now using custom launch templates instead of EKS-managed ones
   use_existing_launch_templates = var.use_existing_launch_templates
   launch_template_arns          = var.launch_template_arns
 
