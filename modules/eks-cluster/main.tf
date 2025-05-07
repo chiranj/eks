@@ -237,45 +237,19 @@ module "eks" {
         block_device_mappings           = try(local.custom_launch_templates[name].block_device_mappings, {})
         metadata_options                = try(local.custom_launch_templates[name].metadata_options, {})
         monitoring                      = try(local.custom_launch_templates[name].monitoring, {})
-        # Explicit tag specifications for all resources created by the launch template
-        tag_specifications = [
+        # The EKS module expects a list of resource types as strings
+        tag_specifications = ["instance", "volume", "network-interface"]
+        
+        # Add all necessary tags directly to the node group's tags
+        tags = merge(
+          lookup(group, "tags", {}),
           {
-            resource_type = "instance"
-            tags = merge(
-              lookup(group, "tags", {}),
-              {
-                "Name"        = lookup(group, "name", name)
-                "ClusterName" = local.name
-                "ManagedBy"   = "terraform"
-              },
-              var.component_id != "" ? { "ComponentID" = var.component_id } : {}
-            )
+            "Name"        = lookup(group, "name", name)
+            "ClusterName" = local.name
+            "ManagedBy"   = "terraform"
           },
-          {
-            resource_type = "volume"
-            tags = merge(
-              lookup(group, "tags", {}),
-              {
-                "Name"        = lookup(group, "name", name)
-                "ClusterName" = local.name
-                "ManagedBy"   = "terraform"
-              },
-              var.component_id != "" ? { "ComponentID" = var.component_id } : {}
-            )
-          },
-          {
-            resource_type = "network-interface"
-            tags = merge(
-              lookup(group, "tags", {}),
-              {
-                "Name"        = lookup(group, "name", name)
-                "ClusterName" = local.name
-                "ManagedBy"   = "terraform"
-              },
-              var.component_id != "" ? { "ComponentID" = var.component_id } : {}
-            )
-          }
-        ]
+          var.component_id != "" ? { "ComponentID" = var.component_id } : {}
+        )
       }
     )
   }
