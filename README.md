@@ -151,24 +151,25 @@ To add a new add-on to the Service Catalog product:
 3. Include the add-on data in the GitLab payload
 4. Add corresponding Helm chart and pipeline job in the GitLab repository
 Error: creating IAM Role (eks132-dev-adot): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: 952aafad-6adc-4527-b1b7-5654312b09b4, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/eks132-dev-adot with an explicit deny in an identity-based policy
+Error: Cannot assume IAM Role
 │ 
-│   with module.adot_iam[0].aws_iam_role.this,
-│   on modules/add-ons/adot/main.tf line 29, in resource "aws_iam_role" "this":
-│   29: resource "aws_iam_role" "this" {
+│   with provider["registry.terraform.io/hashicorp/aws"].iam_admin,
+│   on main.tf line 12, in provider "aws":
+│   12: provider "aws" {
 │ 
-╵
-╷
-│ Error: creating IAM Role (eks132-dev-aws-load-balancer-controller): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: 54533dce-93ac-4bad-bbb1-c9ee3359d1e7, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/eks132-dev-aws-load-balancer-controller with an explicit deny in an identity-based policy
+│ IAM Role
+│ (arn:aws:iam::583541782477:role/uspto-dev/aws-psb-lab-service-role-1)
+│ cannot be assumed.
 │ 
-│   with module.aws_load_balancer_controller_iam[0].aws_iam_role.this,
-│   on modules/add-ons/aws-loadbalancer-controller/main.tf line 29, in resource "aws_iam_role" "this":
-│   29: resource "aws_iam_role" "this" {
+│ There are a number of possible causes of this - the most common are:
+│   * The credentials used in order to assume the role are invalid
+│   * The credentials do not have appropriate permission to assume the role
+│   * The role ARN is not valid
 │ 
-╵
-╷
-│ Error: creating IAM Role (eks132-dev-cert-manager): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: a92b57cd-035a-4da0-9591-0e5bf43c42b8, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/eks132-dev-cert-manager with an explicit deny in an identity-based policy
-│ 
-│   with module.cert_manager_iam[0].aws_iam_role.this,
-│   on modules/add-ons/cert-manager/main.tf line 29, in resource "aws_iam_role" "this":
-│   29: resource "aws_iam_role" "this" {
+│ Error: operation error STS: AssumeRole, https response error StatusCode:
+│ 403, RequestID: f5607b47-5223-4c76-b2b5-93f1b3e5684b, api error
+│ AccessDenied: User:
+│ arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7
+│ is not authorized to perform: sts:AssumeRole on resource:
+│ arn:aws:iam::583541782477:role/uspto-dev/aws-psb-lab-service-role-1
 │ 
