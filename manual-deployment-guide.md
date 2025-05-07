@@ -189,6 +189,42 @@ export AWS_SECRET_ACCESS_KEY=$(echo $creds | jq -r '.Credentials.SecretAccessKey
 export AWS_SESSION_TOKEN=$(echo $creds | jq -r '.Credentials.SessionToken')
 ```
 
+### Using an IAM Admin Role for Add-on IAM Role Creation
+
+If your organization has an explicit deny policy for IAM role creation, you can configure the module to use a different IAM role with higher permissions to create the add-on IAM roles:
+
+```hcl
+# terraform.tfvars
+iam_admin_role_arn = "arn:aws:iam::123456789012:role/IAMAdminRole"
+```
+
+This configuration:
+1. Uses your regular credentials for most AWS operations
+2. Assumes the specified role specifically for IAM role and policy creation
+3. Works in environments where your primary execution role cannot create IAM roles due to organization policies
+
+When using this feature:
+- The specified role must allow your primary Terraform execution role to assume it
+- The role must have permissions to create IAM roles and policies
+- Only IAM resources will be created using this role
+- All other resources will be created using your primary credentials
+
+Example trust policy for the IAM admin role:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::123456789012:role/GitLabRunnerRole"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
 ### Remote State Management
 
 For production use, consider using a remote state backend:
@@ -293,6 +329,18 @@ create_launch_templates_for_custom_amis = false
    - Ensure your custom AMI has all required EKS dependencies
    - Check that the nodes have network connectivity to the EKS control plane endpoint
    - If using a custom CNI, ensure it's properly configured in the launch template
+
+7. **AccessDenied when creating IAM roles**: If you see errors like:
+   ```
+   Error: Error creating IAM Role: AccessDenied: User is not authorized to perform: iam:CreateRole with an explicit deny
+   ```
+   
+   This happens when your organization policies explicitly deny IAM role creation. Use the `iam_admin_role_arn` variable to specify a role with IAM admin permissions:
+   ```hcl
+   iam_admin_role_arn = "arn:aws:iam::123456789012:role/IAMAdminRole"
+   ```
+   
+   The IAM admin role must have permissions to create IAM roles and policies, and your primary role must be allowed to assume it.
 
 ## Cleaning Up
 
