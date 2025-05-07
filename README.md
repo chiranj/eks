@@ -163,3 +163,13 @@ Error message: operation error DynamoDB: PutItem, https response error
 │   Version:   1.6.6
 │   Created:   2025-05-06 18:14:47.949468246 +0000 UTC
 │   Info:      
+
+
+aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=your-vpc-id" "Name=service-name,Values=com.amazonaws.region.eks"
+
+# Get subnet ID of your EC2 instance
+SUBNET_ID=$(aws ec2 describe-instances --instance-ids your-instance-id --query "Reservations[0].Instances[0].SubnetId" --output text)
+
+# Check route table associated with this subnet
+ROUTE_TABLE_ID=$(aws ec2 describe-route-tables --filters "Name=association.subnet-id,Values=$SUBNET_ID" --query "RouteTables[0].RouteTableId" --output text)
+aws ec2 describe-route-tables --route-table-ids $ROUTE_TABLE_ID
