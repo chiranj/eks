@@ -130,8 +130,10 @@ locals {
 
       # Use custom launch template instead of allowing EKS to create one
       use_custom_launch_template = true
-      launch_template_name       = var.use_existing_launch_templates && contains(keys(local.launch_template_data), name) ? local.launch_template_data[name].name : null
-      launch_template_id         = var.use_existing_launch_templates && contains(keys(local.launch_template_data), name) ? local.launch_template_data[name].id : null
+
+      # Force creation of a new launch template by not using existing ones
+      launch_template_name = null
+      launch_template_id   = null
 
       # Custom launch template configuration
       launch_template_version = lookup(group, "launch_template_version", "$Latest")
@@ -242,20 +244,29 @@ module "eks" {
     for name, group in local.managed_node_groups : name => merge(
       group,
       {
-        # Embed the launch template configuration directly in each node group
-        launch_template_name    = try(local.custom_launch_templates[name].name, null)
-        launch_template_id      = try(local.custom_launch_templates[name].id, null)
-        launch_template_version = try(local.custom_launch_templates[name].version, "$Latest")
+        # FORCE RECREATION: Set these to null to force creation of a new template
+        # This is the key to ensuring our user_data gets applied
+        launch_template_name    = null
+        launch_template_id      = null
+        launch_template_version = "$Latest"
 
-        # When creating a new launch template
-        create_launch_template      = try(local.custom_launch_templates[name].create_launch_template, true)
-        launch_template_description = "Custom launch template for ${name} EKS managed node group"
+        # Always create a new launch template with our custom user data
+        create_launch_template      = true
+        launch_template_description = "Custom launch template for ${name} EKS managed node group ${timestamp()}"
         ami_id                      = try(local.custom_launch_templates[name].ami_id, "")
 
-        # FIXED USER DATA APPROACH - This is key to solving the empty user-data issue
-        # 1. We use user_data_template (not base64 encoded) which the module expects
-        # 2. We ensure this has high priority by setting it directly in the node group
-        user_data_template = try(local.custom_launch_templates[name].user_data_template, "")
+        # CRITICAL FIX: Use direct user_data (base64 encoded) which will override any other settings
+        # This ensures the user data is properly set in the launch template
+        user_data = base64encode(templatefile("${path.module}/templates/user-data.sh", {
+          cluster_name         = local.name
+          cluster_endpoint     = try(module.eks.cluster_endpoint, "https://placeholder-endpoint-to-be-replaced.eks.amazonaws.com")
+          cluster_ca_cert      = try(module.eks.cluster_certificate_authority_data, "UGxhY2Vob2xkZXIgQ0EgY2VydGlmaWNhdGUgdG8gYmUgcmVwbGFjZWQ=")
+          dns_cluster_ip       = local.dns_cluster_ip
+          bootstrap_extra_args = lookup(group, "bootstrap_extra_args", "")
+          kubelet_extra_args   = lookup(group, "kubelet_extra_args", "")
+          service_ipv4_cidr    = var.service_ipv4_cidr
+          max_pods             = lookup(group, "max_pods", "110") # Default to 110 if not specified
+        }))
 
         block_device_mappings = try(local.custom_launch_templates[name].block_device_mappings, {})
         metadata_options      = try(local.custom_launch_templates[name].metadata_options, {})
