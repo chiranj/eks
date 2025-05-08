@@ -1,147 +1,129 @@
-provider "aws" {
-  region = "us-east-1"
-}
-
-locals {
-  name   = "eks-cluster"
-  region = "us-east-1"
-
-  vpc_cidr = "10.0.0.0/16"
-  azs      = ["us-east-1a", "us-east-1b", "us-east-1c"]
-
-  tags = {
-    Environment = "dev"
-    Terraform   = "true"
-    Project     = "eks-service-catalog"
+terraform {
+  backend "s3" {
+    bucket = "psb-terraform-state-bucket"
+    key    = "ekscluster_managednodegroup_awstroubleshooting.tfstate"
+    region = "us-east-1"
+    dynamodb_table = "terraform-state-lock-dynamo"
   }
 }
 
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 5.0"
-
-  name = "${local.name}-vpc"
-  cidr = local.vpc_cidr
-
-  azs             = local.azs
-  private_subnets = [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 4, k)]
-  public_subnets  = [for k, v in local.azs : cidrsubnet(local.vpc_cidr, 8, k + 48)]
-
-  enable_nat_gateway = true
-  single_nat_gateway = true
-
-  public_subnet_tags = {
-    "kubernetes.io/role/elb" = 1
-  }
-
-  private_subnet_tags = {
-    "kubernetes.io/role/internal-elb" = 1
-  }
-
-  tags = local.tags
-}
-
-module "eks" {
-  source = "../../"
-
-  cluster_name    = local.name
-  cluster_version = "1.29"
-
-  # VPC Settings - using existing VPC from module 
-  vpc_mode                       = "existing"
-  vpc_id                         = module.vpc.vpc_id
-  subnet_ids                     = module.vpc.private_subnets
-  control_plane_subnet_ids       = module.vpc.intra_subnets
-  cluster_endpoint_public_access = true
-
-  # Organization policy required tag
-  component_id = var.component_id
-
-  # EKS Managed Node Groups
-  eks_managed_node_groups = {
-    default = {
-      name = "default-node-group"
-
-      instance_types = ["t3.medium"]
-      capacity_type  = "ON_DEMAND"
-
-      min_size     = 1
-      max_size     = 5
-      desired_size = 2
-
-      labels = {
-        Environment = "dev"
-        Role        = "general"
-      }
-
-      tags = local.tags
-    },
-    # Example of a node group with custom AMI
-    # The approach now uses direct custom_ami_id field instead of launch templates
-    custom-ami = {
-      name = "custom-ami-node-group"
-
-      instance_types = ["t3.medium"]
-      capacity_type  = "ON_DEMAND"
-
-      min_size     = 1
-      max_size     = 3
-      desired_size = 1
-
-      # Using custom_ami_id directly lets EKS handle launch template creation
-      # This is the recommended approach to avoid launch template permission issues
-      custom_ami_id = "ami-0123456789abcdef0"
-
-      # When using custom_ami_id, ami_type must be null
-      ami_type = null
-
-      # Custom block device mappings (overrides default configuration)
-      # This is required due to organization policies:
-      # - Must use gp3 instead of gp2 (policy "DenyVolumeTypegp2")
-      # - Must enable encryption (policy "EC2VolumeDenyWithoutEncryption")
-      block_device_mappings = {
-        root = {
-          device_name = "/dev/xvda"
-          ebs = {
-            volume_size           = 100 # Custom size for this node group
-            volume_type           = "gp3"
-            iops                  = 4000
-            throughput            = 200
-            encrypted             = true
-            delete_on_termination = true
-          }
-        }
-      }
-
-      # Bootstrap arguments for custom AMI
-      bootstrap_extra_args = "--use-max-pods false"
-
-      labels = {
-        Environment = "dev"
-        Role        = "custom"
-      }
-
-      tags = local.tags
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
     }
   }
+}
 
-  # Enable add-ons
-  enable_aws_load_balancer_controller = true
 
-  # Node scaling method - use Karpenter instead of Cluster Autoscaler
-  node_scaling_method = "karpenter"
-  enable_keda         = true
+module "eks_cluster" {
+  #depends_on = [aws_launch_template.node_group_launch_template]
+  source  = "terraform-aws-modules/eks/aws"
+  version = "~> 20.0"
 
-  # Launch template configuration for custom AMI
-  node_group_ami_id = var.node_group_ami_id
+  cluster_name    = "eks-paas-cluster-aws"
+  cluster_version = "1.32"
+  cluster_endpoint_public_access = true # need this otherwise can't access EKS from outside VPC. Ref: https://github.com/terraform-aws-modules/terraform-aws-eks#input_cluster_endpoint_public_access
+  # add other IAM users who can access a K8s cluster (by default, the IAM user who created a cluster is given access already)
+  #aws_auth_users = []
+  # Cluster Addon as failed without them
 
-  enable_external_dns = false
-  enable_prometheus   = false
+  create_iam_role = false
+  create_node_iam_role = false
+  create_cloudwatch_log_group = false
+  cluster_encryption_config = {} 
+  cluster_addons = {
+    coredns = {
+      most_recent = true
+    }
+    kube-proxy = {
+      most_recent = true
+    }
+    vpc-cni = {
+      most_recent = true
+    }
+    aws-ebs-csi-driver = {
+      most_recent = true
+    }
+  }
+  # EKS Addons
+  #cluster_addons = {
+  #  coredns                = {}
+  #  eks-pod-identity-agent = {}
+  #  kube-proxy             = {}
+  #  vpc-cni                = {}
+  #}
 
-  # GitLab integration
-  trigger_gitlab_pipeline = true
-  # Optional custom IAM role ARN for GitLab CI/CD deployment
-  gitlab_aws_role_arn = var.gitlab_aws_role_arn
+  vpc_id     = "vpc-0fdf8f6123bcee653"
+  subnet_ids = ["subnet-06fbd21c8b18472d5", "subnet-00ec24404cb22eef3"]
+  iam_role_arn = "arn:aws:iam::583541782477:role/uspto-dev/aws-psb-lab-service-role-1"
+  #iam_role_arn = "arn:aws:iam::583541782477:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_SsbAwsDevPSB_757bdd0a5303e68f"
+  tags              = module.common-tags.tags
+  #iam_instance_profile_arn = "arn:aws:iam::583541782477:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_SsbAwsDevPSB_757bdd0a5303e68f"
+  #service_account_role_arn = "arn:aws:iam::583541782477:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_SsbAwsDevPSB_757bdd0a5303e68f"
 
-  tags = local.tags
+
+} // Control Plane Creation
+
+module "ssh_sg"{
+   source      = "git::https://prod-cicm.uspto.gov/gitlab/psb/terraform.git//aws-modules/security-group"
+   name        = "eksnode-sg"
+   description = "Security group with ports open for tomcat"
+   vpc_id      = "vpc-0fdf8f6123bcee653"
+   #Add TOMCAT  rules
+   ingress_rules = ["ssh-tcp"]
+   egress_rules = ["all-all"]
+   ingress_cidr_blocks      = ["10.0.0.0/8"]
+   ingress_ipv6_cidr_blocks = [] # Not all VPCs have IPv6 enabled, but if you have it enabled, then this will work - ["${data.aws_vpc.default.ipv6_cidr_block}"]
+   tags        = module.common-tags.tags
+
+}
+
+
+
+
+# Attaching UACS tags
+module "common-tags" {
+    source = "git::https://prod-cicm.uspto.gov/gitlab/psb/terraform.git//aws-modules/UACS-TAGS"
+
+    BusinessArea           = "Infra"
+    Name                   = "EKSCluster"
+    Stack                  = "PAAS"
+    PPAProgramCode         = "SPAAS0"
+    CommitId               = "775d7a0d3f1ad7edc489a7ea78854a8c5f39344e"
+    LastUpdateBy           = "schennu"
+    BusinessProduct        = "InfraTest"
+    LastUpdate             = "Today"
+    ProductLine            = "EBPL"
+    ComponentID            = "14800"
+    KeepOn                 = "Mo+Tu+We+Th+Fr:08-18/Sa:00-23/Su:00-23"
+    Environment            = "DEV"
+    Product                = "PaaS"
+}
+
+
+output "cluster_arn" {
+    value   = module.eks_cluster.cluster_arn
+
+}
+
+output "cluster_certificate_authority_data" {
+    value = module.eks_cluster.cluster_certificate_authority_data
+}
+
+
+output "cluster_endpoint" {
+  value       = module.eks_cluster.cluster_endpoint 
+
+}
+
+output "cluster_id" {
+  value       = module.eks_cluster.cluster_id 
+}
+
+
+output "cluster_name" {
+  value       = module.eks_cluster.cluster_name 
+
 }
