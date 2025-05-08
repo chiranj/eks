@@ -166,3 +166,146 @@ Error: Cannot assume IAM Role
 │ declared at
 │ .terraform/modules/eks_cluster.eks/modules/eks-managed-node-group/variables.tf:339,1-30:
 │ element 0: string required.
+
+
+
+
+
+
+
+
+
+
+
+- hosts: docco_2
+  gather_facts: yes
+  become: yes
+  remote_user: srv_ansible_usr
+  vars:
+    service_version: "2.2.1.616"
+    ocr_version: "0.40.1.458"
+    support_version: "0.20.15"
+    docker_registry: "prod-cicm.uspto.gov:9998/techre/doccode"
+    pull_images_only: false
+    skip_image_pull: true
+    deploy_nginx: false
+    deploy_health: false
+    deploy_ocr: false
+    deploy_service: true
+    deploy_logrotate: false
+    containers: []
+    docker_api_version: "1.41"  # Add this line
+
+  pre_tasks:
+    # First, ensure Docker service is running
+    - name: Ensure Docker service is running
+      service:
+        name: docker
+        state: started
+        enabled: yes
+
+    - name: Populate containers list based on deployment flags
+      set_fact:
+        containers: "{{ containers + [item] }}"
+      when: item.deploy_flag|bool
+      with_items:
+        - name: doccode-nginx
+          version: "{{ support_version }}"
+          network_mode: "host"
+          volumes: []
+          deploy_flag: "{{ deploy_nginx }}"
+        - name: doccode-health
+          version: "{{ support_version }}"
+          network_mode: "host"
+          volumes: []
+          deploy_flag: "{{ deploy_health }}"
+        - name: doccode-ocr
+          version: "{{ ocr_version }}"
+          network_mode: "host"
+          volumes: []
+          deploy_flag: "{{ deploy_ocr }}"
+        - name: doccode-service
+          version: "{{ service_version }}"
+          network_mode: "host"
+          volumes:
+            - /var/log/docker/:/app/logs/
+          deploy_flag: "{{ deploy_service }}"
+        - name: doccode-logrotate
+          version: "{{ support_version }}"
+          network_mode: "host"
+          volumes:
+            - /var/log/docker/:/var/log/docker/
+          deploy_flag: "{{ deploy_logrotate }}"
+
+  tasks:
+
+    - name: Remove all exited containers
+      shell: docker ps -a -q -f status=exited | xargs --no-run-if-empty docker rm
+      ignore_errors: yes
+      when:
+        - not pull_images_only|bool
+
+    - name: Pull Docker images
+      docker_image:
+        name: "{{ docker_registry }}/{{ item.name }}:{{ item.version }}"
+        source: pull
+        force_source: yes
+      with_items: "{{ containers }}"
+      when:
+        - containers|length > 0
+        - not skip_image_pull|bool
+
+    - name: Stop running containers
+      docker_container:
+        name: "{{ item.name }}"
+        state: stopped
+        api_version: "{{ docker_api_version }}"
+      with_items: "{{ containers }}"
+      ignore_errors: yes
+      when:
+        - containers|length > 0
+        - not pull_images_only|bool
+
+    - name: Remove stopped containers
+      docker_container:
+        name: "{{ item.name }}"
+        state: absent
+        api_version: "{{ docker_api_version }}"
+      with_items: "{{ containers }}"
+      ignore_errors: yes
+      when:
+        - containers|length > 0
+        - not pull_images_only|bool
+
+    - name: Start new containers
+      docker_container:
+        name: "{{ item.name }}"
+        image: "{{ docker_registry }}/{{ item.name }}:{{ item.version }}"
+        env:
+          client_id: "0oa4bnc5daPxies414h7"
+          client_secret: "MTBb8LcZANAEIB8ENukXWRA1FVa4gn1VkGF9dB4Y"
+          token_url: "https://auth.uspto.gov/oauth2/aus4qv50b0BRaFZMp4h7/v1/token"
+        state: started
+        restart_policy: unless-stopped
+        network_mode: "{{ item.network_mode }}"
+        volumes: "{{ item.volumes }}"
+        api_version: "{{ docker_api_version }}"
+      with_items: "{{ containers }}"
+      when:
+        - containers|length > 0
+        - not pull_images_only|bool
+
+    - name: Verify containers are running
+      docker_container_info:
+        name: "{{ item.name }}"
+        api_version: "{{ docker_api_version }}"
+      register: container_info
+      with_items: "{{ containers }}"
+      failed_when: not container_info.exists or container_info.container.State.Status != 'running'
+      when:
+        - containers|length > 0
+        - not pull_images_only|bool
+
+TASK [Stop running containers] **************************************************************************************************************************************************************************************************************
+failed: [dav-doccodeqc-script-16.cld.uspto.gov] (item={'name': 'doccode-service', 'version': '2.2.1.616', 'network_mode': 'host', 'volumes': ['/var/log/docker/:/app/logs/'], 'deploy_flag': True}) => {"ansible_loop_var": "item", "changed": false, "item": {"deploy_flag": true, "name": "doccode-service", "network_mode": "host", "version": "2.2.1.616", "volumes": ["/var/log/docker/:/app/logs/"]}, "msg": "Error retrieving container list: 'http+docker'"}
+...ignoring
