@@ -176,7 +176,7 @@ Error: Cannot assume IAM Role
 
 
 
-
+```yml
 - hosts: docco_2
   gather_facts: yes
   become: yes
@@ -305,6 +305,7 @@ Error: Cannot assume IAM Role
       when:
         - containers|length > 0
         - not pull_images_only|bool
+```
 
 TASK [Stop running containers] **************************************************************************************************************************************************************************************************************
 failed: [dav-doccodeqc-script-16.cld.uspto.gov] (item={'name': 'doccode-service', 'version': '2.2.1.616', 'network_mode': 'host', 'volumes': ['/var/log/docker/:/app/logs/'], 'deploy_flag': True}) => {"ansible_loop_var": "item", "changed": false, "item": {"deploy_flag": true, "name": "doccode-service", "network_mode": "host", "version": "2.2.1.616", "volumes": ["/var/log/docker/:/app/logs/"]}, "msg": "Error retrieving container list: 'http+docker'"}
