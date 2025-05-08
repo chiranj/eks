@@ -62,21 +62,19 @@ locals {
       #
       # This approach ensures proper node bootstrapping with all security data
 
-      # We'll prioritize the complete bootstrap script whenever possible
-      # This change addresses the empty user-data issue by forcing the use of the complete script
-      # when using the deploy.sh phased deployment approach
-      user_data = base64encode(
-        templatefile("${path.module}/templates/user-data.sh", {
-          cluster_name         = local.name
-          cluster_endpoint     = try(module.eks.cluster_endpoint, "https://placeholder-endpoint-to-be-replaced.eks.amazonaws.com")
-          cluster_ca_cert      = try(module.eks.cluster_certificate_authority_data, "UGxhY2Vob2xkZXIgQ0EgY2VydGlmaWNhdGUgdG8gYmUgcmVwbGFjZWQ=")
-          dns_cluster_ip       = local.dns_cluster_ip
-          bootstrap_extra_args = lookup(group, "bootstrap_extra_args", "")
-          kubelet_extra_args   = lookup(group, "kubelet_extra_args", "")
-          service_ipv4_cidr    = var.service_ipv4_cidr
-          max_pods             = lookup(group, "max_pods", "110") # Default to 110 if not specified
-        })
-      )
+      # Direct user_data approach that won't be overridden
+      # This fixes the empty user-data issue by using a key that the EKS module will respect
+      # The problem was that user_data was being ignored by the module
+      user_data_template = templatefile("${path.module}/templates/user-data.sh", {
+        cluster_name         = local.name
+        cluster_endpoint     = try(module.eks.cluster_endpoint, "https://placeholder-endpoint-to-be-replaced.eks.amazonaws.com")
+        cluster_ca_cert      = try(module.eks.cluster_certificate_authority_data, "UGxhY2Vob2xkZXIgQ0EgY2VydGlmaWNhdGUgdG8gYmUgcmVwbGFjZWQ=")
+        dns_cluster_ip       = local.dns_cluster_ip
+        bootstrap_extra_args = lookup(group, "bootstrap_extra_args", "")
+        kubelet_extra_args   = lookup(group, "kubelet_extra_args", "")
+        service_ipv4_cidr    = var.service_ipv4_cidr
+        max_pods             = lookup(group, "max_pods", "110") # Default to 110 if not specified
+      })
 
       # Block device mappings for the launch template
       block_device_mappings = {
@@ -253,10 +251,15 @@ module "eks" {
         create_launch_template      = try(local.custom_launch_templates[name].create_launch_template, true)
         launch_template_description = "Custom launch template for ${name} EKS managed node group"
         ami_id                      = try(local.custom_launch_templates[name].ami_id, "")
-        user_data                   = try(local.custom_launch_templates[name].user_data, "")
-        block_device_mappings       = try(local.custom_launch_templates[name].block_device_mappings, {})
-        metadata_options            = try(local.custom_launch_templates[name].metadata_options, {})
-        monitoring                  = try(local.custom_launch_templates[name].monitoring, {})
+
+        # FIXED USER DATA APPROACH - This is key to solving the empty user-data issue
+        # 1. We use user_data_template (not base64 encoded) which the module expects
+        # 2. We ensure this has high priority by setting it directly in the node group
+        user_data_template = try(local.custom_launch_templates[name].user_data_template, "")
+
+        block_device_mappings = try(local.custom_launch_templates[name].block_device_mappings, {})
+        metadata_options      = try(local.custom_launch_templates[name].metadata_options, {})
+        monitoring            = try(local.custom_launch_templates[name].monitoring, {})
         # The EKS module expects a list of resource types as strings
         tag_specifications = ["instance", "volume", "network-interface"]
 
