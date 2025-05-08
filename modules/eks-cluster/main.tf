@@ -19,18 +19,8 @@ locals {
     } if contains(keys(var.eks_managed_node_groups), name)
   }
 
-  # CUSTOM LAUNCH TEMPLATES restored from rollback point
-  # Generate user-data for custom AMI bootstrapping
-  # This will be a dependency loop that can only be resolved at apply time
-  # We can use a null resource to defer the creation of user data until eks module outputs are available
-  user_data_template = {
-    for name, group in var.eks_managed_node_groups : name => {
-      cluster_name         = local.name
-      dns_cluster_ip       = local.dns_cluster_ip
-      bootstrap_extra_args = lookup(group, "bootstrap_extra_args", "")
-      kubelet_extra_args   = lookup(group, "kubelet_extra_args", "")
-    }
-  }
+  # REMOVED: Old user_data_template definition that's no longer used
+  # We're now using the user_data_template_path approach which is defined in the custom_launch_templates section
 
   # Custom Launch Template Configuration
   custom_launch_templates = {
@@ -62,19 +52,17 @@ locals {
       #
       # This approach ensures proper node bootstrapping with all security data
 
-      # Direct user_data approach that won't be overridden
-      # This fixes the empty user-data issue by using a key that the EKS module will respect
-      # The problem was that user_data was being ignored by the module
-      user_data_template = templatefile("${path.module}/templates/user-data.sh", {
-        cluster_name         = local.name
-        cluster_endpoint     = try(module.eks.cluster_endpoint, "https://placeholder-endpoint-to-be-replaced.eks.amazonaws.com")
-        cluster_ca_cert      = try(module.eks.cluster_certificate_authority_data, "UGxhY2Vob2xkZXIgQ0EgY2VydGlmaWNhdGUgdG8gYmUgcmVwbGFjZWQ=")
-        dns_cluster_ip       = local.dns_cluster_ip
-        bootstrap_extra_args = lookup(group, "bootstrap_extra_args", "")
-        kubelet_extra_args   = lookup(group, "kubelet_extra_args", "")
-        service_ipv4_cidr    = var.service_ipv4_cidr
-        max_pods             = lookup(group, "max_pods", "110") # Default to 110 if not specified
-      })
+      # CORRECT PLACE to define user_data_template_path - this needs to be part of launch template
+      # Using template file approach with defined template variables
+      user_data_template_path = "${path.module}/templates/user-data.sh.tpl"
+      user_data_template_variables = {
+        cluster_name      = local.name
+        cluster_endpoint  = try(module.eks.cluster_endpoint, "https://placeholder-endpoint-to-be-replaced.eks.amazonaws.com")
+        cluster_ca_cert   = try(module.eks.cluster_certificate_authority_data, "UGxhY2Vob2xkZXIgQ0EgY2VydGlmaWNhdGUgdG8gYmUgcmVwbGFjZWQ=")
+        dns_cluster_ip    = local.dns_cluster_ip
+        service_ipv4_cidr = var.service_ipv4_cidr
+        max_pods          = lookup(group, "max_pods", "70")
+      }
 
       # Block device mappings for the launch template
       block_device_mappings = {
@@ -255,19 +243,9 @@ module "eks" {
         launch_template_description = "Custom launch template for ${name} EKS managed node group ${timestamp()}"
         ami_id                      = try(local.custom_launch_templates[name].ami_id, "")
 
-        # Use template path approach instead of hardcoded user data
-        # This approach uses a template file which EKS module understands better
-        user_data_template_path = "${path.module}/templates/user-data.sh.tpl"
-        
-        # Template variables for the user data template file
-        user_data_template_variables = {
-          cluster_name     = local.name
-          cluster_endpoint = try(module.eks.cluster_endpoint, "https://placeholder-endpoint-to-be-replaced.eks.amazonaws.com")
-          cluster_ca_cert  = try(module.eks.cluster_certificate_authority_data, "UGxhY2Vob2xkZXIgQ0EgY2VydGlmaWNhdGUgdG8gYmUgcmVwbGFjZWQ=")
-          dns_cluster_ip   = local.dns_cluster_ip
-          service_ipv4_cidr = var.service_ipv4_cidr
-          max_pods         = lookup(group, "max_pods", "70")
-        }
+        # REMOVED: user_data_template_path from here
+        # This should only be in the custom_launch_templates section
+        # The managed node group just needs to reference the launch template
 
         block_device_mappings = try(local.custom_launch_templates[name].block_device_mappings, {})
         metadata_options      = try(local.custom_launch_templates[name].metadata_options, {})
