@@ -307,4 +307,37 @@ Error: Cannot assume IAM Role
         - not pull_images_only|bool
 ```
 
+  "LaunchTemplateVersions": [
+        {
+            "LaunchTemplateId": "lt-034d30ba8f8bdd51f",
+            "LaunchTemplateName": "eks132-dev-ng-eks-node-group-20250508070139981100000001",
+            "VersionNumber": 1,
+            "VersionDescription": "Custom launch template for default EKS managed node group",
+            "CreateTime": "2025-05-08T07:01:40+00:00",
+            "CreatedBy": "arn:aws:sts::583541782477:assumed-role/uacs-gitlab-runner-role-1/i-0da1b3e8ffe8e22b7",
+            "DefaultVersion": true,
+            "LaunchTemplateData": {
+                "BlockDeviceMappings": [
+                    {
+                        "DeviceName": "/dev/xvda",
+                        "Ebs": {
+                            "Encrypted": true,
+                            "DeleteOnTermination": true,
+                            "Iops": 3000,
+                            "VolumeSize": 100,
+                            "VolumeType": "gp3",
+                            "Throughput": 150
+                        }
+                    }
+                ],
+                "ImageId": "ami-03b4e6bf3aec4bb1e",
+                "Monitoring": {
+                    "Enabled": true
+                },
+                "UserData": "",
+                "TagSpecifications": [
+                    {
+                        "ResourceType": "instance",
+                        "Tags": [
+                            {
 
