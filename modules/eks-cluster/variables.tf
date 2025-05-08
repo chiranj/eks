@@ -125,3 +125,27 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "enable_ebs_csi_driver" {
+  description = "Enable Amazon EBS CSI Driver as a managed add-on"
+  type        = bool
+  default     = false
+}
+
+variable "ebs_csi_driver_role_arn" {
+  description = "IAM role ARN for EBS CSI Driver service account"
+  type        = string
+  default     = ""
+}
+
+variable "enable_efs_csi_driver" {
+  description = "Enable Amazon EFS CSI Driver as a managed add-on"
+  type        = bool
+  default     = false
+}
+
+variable "efs_csi_driver_role_arn" {
+  description = "IAM role ARN for EFS CSI Driver service account"
+  type        = string
+  default     = ""
+}

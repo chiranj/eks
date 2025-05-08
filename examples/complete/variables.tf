@@ -21,5 +21,5 @@ variable "node_group_ami_id" {
 variable "component_id" {
   description = "Value for the ComponentID tag required by organizational policy"
   type        = string
-  default     = "aws-eks-cluster"  # Default value for the ComponentID tag
+  default     = "aws-eks-cluster" # Default value for the ComponentID tag
 }

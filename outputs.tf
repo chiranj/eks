@@ -88,6 +88,18 @@ output "enabled_addons" {
       enabled      = true
       iam_role_arn = try(module.fluent_bit_iam[0].role_arn, "")
     } : null
+
+    ebs_csi_driver = local.addons_enabled.ebs_csi_driver ? {
+      enabled              = true
+      iam_role_arn         = try(module.ebs_csi_driver_iam[0].role_arn, "")
+      is_eks_managed_addon = true
+    } : null
+
+    efs_csi_driver = local.addons_enabled.efs_csi_driver ? {
+      enabled              = true
+      iam_role_arn         = try(module.efs_csi_driver_iam[0].role_arn, "")
+      is_eks_managed_addon = true
+    } : null
   }
 }
 
@@ -185,4 +197,9 @@ output "ebs_csi_driver_role_arn" {
 output "efs_csi_driver_role_arn" {
   description = "ARN of the IAM role for EFS CSI Driver"
   value       = local.addons_enabled.efs_csi_driver ? try(module.efs_csi_driver_iam[0].role_arn, "") : ""
+}
+
+output "cluster_addons" {
+  description = "Map of installed EKS cluster add-ons"
+  value       = module.eks_cluster.cluster_addons
 }

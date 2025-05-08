@@ -41,8 +41,17 @@ eks_managed_node_groups = {
     # Custom AMI for this specific node group - will use launch template
     ami_id = "ami-0123456789abcdef0"
     
+    # Set custom max pods per node (overrides the CNI auto-calculation)
+    # Recommended values by instance type:
+    # - t3.medium: 17-35 pods
+    # - t3.large/m5.large: 35-58 pods
+    # - m5.xlarge/c5.xlarge: 58-110 pods 
+    # - m5.2xlarge+: 58-110 pods
+    # Note: For memory/CPU intensive workloads, use 30-50% of these values
+    max_pods = "58"  # Conservative setting for m5.large
+    
     # Optional: Additional bootstrap arguments for custom AMI
-    # bootstrap_extra_args = "--use-max-pods false"
+    # bootstrap_extra_args = "--container-runtime containerd"
     
     # Optional: Additional kubelet arguments
     # kubelet_extra_args = "--node-labels=node.kubernetes.io/workload-type=cpu"
@@ -155,8 +164,12 @@ enable_cert_manager                 = true
 enable_nginx_ingress                = true
 enable_adot                         = true
 enable_fluent_bit                   = true
-enable_ebs_csi_driver               = true
-enable_efs_csi_driver               = false
+
+# Storage CSI Drivers
+# When enabled, these are installed as native EKS add-ons
+# This ensures proper versioning, updates, and lifecycle management
+enable_ebs_csi_driver               = true   # Enable EBS CSI driver as an EKS managed add-on
+enable_efs_csi_driver               = false  # Enable EFS CSI driver as an EKS managed add-on
 
 # External DNS configuration (if enabled)
 external_dns_hosted_zone_source     = "existing"  # "existing" or "create"

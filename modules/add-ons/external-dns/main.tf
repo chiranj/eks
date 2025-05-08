@@ -10,7 +10,7 @@ locals {
   create_resources = var.create_role
   role_name        = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
   role_arn         = var.create_role ? aws_iam_role.this[0].arn : var.existing_role_arn
-  
+
   # Determine if we should create a new hosted zone
   create_hosted_zone = var.hosted_zone_source == "create" && var.domain != ""
 
@@ -57,16 +57,16 @@ data "aws_iam_policy_document" "this" {
 
 resource "aws_iam_role" "this" {
   provider = aws.iam_admin
-  
+
   count              = local.create_resources ? 1 : 0
-  name        = "${var.cluster_name}-${local.name}"
+  name               = "${var.cluster_name}-${local.name}"
   assume_role_policy = data.aws_iam_policy_document.this[0].json
   tags               = var.tags
 }
 
 resource "aws_iam_policy" "this" {
   provider = aws.iam_admin
-  
+
   count       = local.create_resources ? 1 : 0
   name        = "${var.cluster_name}-${local.name}"
   description = "IAM policy for External DNS"
@@ -98,7 +98,7 @@ resource "aws_iam_policy" "this" {
 
 resource "aws_iam_role_policy_attachment" "this" {
   provider = aws.iam_admin
-  
+
   count      = local.create_resources ? 1 : 0
   role       = aws_iam_role.this[0].name
   policy_arn = aws_iam_policy.this[0].arn

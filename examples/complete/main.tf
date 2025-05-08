@@ -53,9 +53,9 @@ module "eks" {
   subnet_ids                     = module.vpc.private_subnets
   control_plane_subnet_ids       = module.vpc.intra_subnets
   cluster_endpoint_public_access = true
-  
+
   # Organization policy required tag
-  component_id                   = var.component_id
+  component_id = var.component_id
 
   # EKS Managed Node Groups
   eks_managed_node_groups = {
@@ -91,10 +91,10 @@ module "eks" {
       # Using custom_ami_id directly lets EKS handle launch template creation
       # This is the recommended approach to avoid launch template permission issues
       custom_ami_id = "ami-0123456789abcdef0"
-      
+
       # When using custom_ami_id, ami_type must be null
       ami_type = null
-      
+
       # Custom block device mappings (overrides default configuration)
       # This is required due to organization policies:
       # - Must use gp3 instead of gp2 (policy "DenyVolumeTypegp2")
@@ -103,7 +103,7 @@ module "eks" {
         root = {
           device_name = "/dev/xvda"
           ebs = {
-            volume_size           = 100  # Custom size for this node group
+            volume_size           = 100 # Custom size for this node group
             volume_type           = "gp3"
             iops                  = 4000
             throughput            = 200

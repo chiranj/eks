@@ -58,9 +58,9 @@ enable_keda                         = true
 enable_external_dns                 = true
 enable_prometheus                   = false
 
-# Storage add-ons (EBS is enabled by default)
-enable_ebs_csi_driver               = true
-enable_efs_csi_driver               = false
+# Storage add-ons as EKS managed add-ons
+enable_ebs_csi_driver               = true   # Enables EBS CSI driver as an EKS managed add-on
+enable_efs_csi_driver               = false  # Set to true to enable EFS CSI driver as an EKS managed add-on
 
 # IMPORTANT: Disable GitLab pipeline triggering for manual deployment
 trigger_gitlab_pipeline             = false
@@ -95,6 +95,10 @@ terraform init
 
 ### 5. Deploy the EKS Cluster
 
+#### Option 1: Standard Deployment (No Custom AMI)
+
+If you're not using a custom AMI, you can deploy everything at once:
+
 ```bash
 # Preview changes
 terraform plan
@@ -104,6 +108,40 @@ terraform apply
 ```
 
 Review the changes and type `yes` to proceed with the deployment.
+
+#### Option 2: Phased Deployment (Recommended for Custom AMIs)
+
+When using custom AMIs with advanced bootstrap configurations, use a phased deployment approach to avoid dependency cycles:
+
+##### Phase 1: Deploy Control Plane Only
+```bash
+terraform apply -target=module.eks_cluster.module.eks.aws_eks_cluster.this[0]
+```
+
+This creates just the EKS control plane and gives us access to the cluster endpoint, CA certificate, etc.
+
+##### Phase 2: Create Launch Templates with Complete Data
+```bash
+terraform apply -target='module.eks_cluster.module.eks.aws_launch_template.this'
+```
+
+This creates launch templates with the full bootstrap script using the data from the control plane.
+
+##### Phase 3: Create Node Groups
+```bash
+terraform apply -target='module.eks_cluster.module.eks.aws_eks_node_group.this'
+```
+
+The node groups will use the properly configured launch templates.
+
+##### Phase 4: Deploy Everything Else
+```bash
+terraform apply
+```
+
+This completes the deployment of any remaining resources including the storage add-ons configured as EKS managed add-ons.
+
+> **Note**: The phased deployment approach is especially important when using custom AMIs with full bootstrap scripts that require cluster data. It ensures that nodes have all the security data they need when joining the cluster.
 
 ## Deploying Kubernetes Add-ons
 
@@ -282,11 +320,24 @@ Our solution implements custom AMI support using launch templates that are creat
      custom_group = {
        ami_id = "ami-0123456789abcdef0"
        
+       # Set custom max pods per node (overrides the CNI auto-calculation)
+       # Instance-specific recommendation for m5.large
+       max_pods = "58"  # Conservative setting for m5.large
+       
        # Optional bootstrap script arguments 
-       bootstrap_extra_args = "--use-max-pods false --container-runtime containerd"
+       bootstrap_extra_args = "--container-runtime containerd"
        
        # Optional kubelet arguments
        kubelet_extra_args = "--node-labels=workload-type=cpu-optimized"
+     }
+   }
+   
+   # Example for nodes running large, resource-intensive pods:
+   eks_managed_node_groups = {
+     memory_optimized = {
+       instance_types = ["r5.2xlarge"]  # Memory-optimized instance
+       ami_id = "ami-0123456789abcdef0"
+       max_pods = "35"  # 30-40% of theoretical max for memory-intensive workloads
      }
    }
    ```
@@ -296,6 +347,32 @@ When using custom AMIs, ensure that:
 - The AMI exists in the same region as your EKS cluster
 - You have permissions to use the specified AMI
 - The AMI has the AWS EKS bootstrap script installed at `/etc/eks/bootstrap.sh`
+
+### Max Pods Recommendations by Instance Type
+
+When using `--use-max-pods false` in the bootstrap script, you need to specify the maximum number of pods per node. Here are recommended values based on instance type and workload:
+
+| Instance Type | vCPUs | Memory (GiB) | General Workloads | CPU-Intensive | Memory-Intensive |
+|---------------|-------|--------------|-------------------|---------------|------------------|
+| t3.small      | 2     | 2            | 11                | 4-8           | 4-6              |
+| t3.medium     | 2     | 4            | 17                | 8-12          | 6-9              |
+| t3.large      | 2     | 8            | 35                | 15-25         | 10-20            |
+| m5.large      | 2     | 8            | 29-58             | 15-30         | 10-25            |
+| m5.xlarge     | 4     | 16           | 58                | 25-40         | 20-35            |
+| m5.2xlarge    | 8     | 32           | 58-110            | 30-50         | 25-45            |
+| m5.4xlarge    | 16    | 64           | 110               | 40-70         | 35-60            |
+| c5.large      | 2     | 4            | 29                | 20-25         | 8-15             |
+| c5.xlarge     | 4     | 8            | 58                | 30-45         | 15-25            |
+| c5.2xlarge    | 8     | 16           | 58-110            | 40-60         | 20-35            |
+| r5.large      | 2     | 16           | 29                | 10-20         | 15-25            |
+| r5.xlarge     | 4     | 32           | 58                | 15-30         | 25-45            |
+| r5.2xlarge    | 8     | 64           | 58-110            | 20-40         | 35-70            |
+
+**Guidance for choosing max_pods values:**
+- For general-purpose workloads (web servers, small APIs): Use the recommended General Workloads value
+- For CPU-intensive workloads (data processing, ML inference): Use 50-70% of the General Workloads value
+- For memory-intensive workloads (databases, caches): Use 30-60% of the General Workloads value
+- For production workloads, be conservative to allow for resource buffer and future scaling
 
 If you need to disable the automatic launch template creation for custom AMIs:
 ```hcl
@@ -446,14 +523,25 @@ if [ -n "$LB_ROLE_ARN" ] && [ "$LB_ROLE_ARN" != "" ]; then
     --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=$LB_ROLE_ARN
 fi
 
-# EBS CSI Driver
-if [ -n "$EBS_CSI_ROLE_ARN" ] && [ "$EBS_CSI_ROLE_ARN" != "" ]; then
-  echo "Installing EBS CSI Driver..."
+# Note: EBS CSI and EFS CSI drivers are now installed as EKS managed add-ons
+# The following code is for reference only - the add-ons are managed by EKS
+# when 'enable_ebs_csi_driver' and 'enable_efs_csi_driver' are set to true
+
+# Get information about which add-ons are EKS-managed
+EKS_MANAGED_ADDONS=$(terraform output -json cluster_addons 2>/dev/null || echo "{}")
+IS_EBS_CSI_EKS_MANAGED=$(echo $EKS_MANAGED_ADDONS | grep -c "aws-ebs-csi-driver" || echo "0")
+IS_EFS_CSI_EKS_MANAGED=$(echo $EKS_MANAGED_ADDONS | grep -c "aws-efs-csi-driver" || echo "0")
+
+# EBS CSI Driver (if not managed by EKS)
+if [ -n "$EBS_CSI_ROLE_ARN" ] && [ "$EBS_CSI_ROLE_ARN" != "" ] && [ "$IS_EBS_CSI_EKS_MANAGED" -eq 0 ]; then
+  echo "Installing EBS CSI Driver manually (not as EKS managed add-on)..."
   helm repo add aws-ebs-csi-driver https://kubernetes-sigs.github.io/aws-ebs-csi-driver
   helm repo update
   helm upgrade --install aws-ebs-csi-driver aws-ebs-csi-driver/aws-ebs-csi-driver \
     --namespace kube-system \
     --set controller.serviceAccount.annotations."eks\.amazonaws\.com/role-arn"=$EBS_CSI_ROLE_ARN
+else
+  echo "EBS CSI Driver is managed by EKS add-ons. No manual installation needed."
 fi
 
 # Add installation for other add-ons here...

@@ -38,3 +38,18 @@ output "custom_launch_templates" {
   description = "Launch templates created for node groups with custom AMIs (now handled by EKS module)"
   value       = {}
 }
+
+output "cluster_addons" {
+  description = "Map of installed EKS cluster add-ons"
+  value       = module.eks.cluster_addons
+}
+
+output "ebs_csi_driver_enabled" {
+  description = "Whether EBS CSI Driver add-on is enabled"
+  value       = var.enable_ebs_csi_driver
+}
+
+output "efs_csi_driver_enabled" {
+  description = "Whether EFS CSI Driver add-on is enabled"
+  value       = var.enable_efs_csi_driver
+}

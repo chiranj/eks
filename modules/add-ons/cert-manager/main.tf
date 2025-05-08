@@ -32,7 +32,7 @@ data "aws_iam_policy_document" "this" {
 
 resource "aws_iam_role" "this" {
   provider = aws.iam_admin
-  
+
   count              = local.create_resources ? 1 : 0
   name               = local.role_name
   assume_role_policy = data.aws_iam_policy_document.this[0].json
@@ -41,7 +41,7 @@ resource "aws_iam_role" "this" {
 
 resource "aws_iam_policy" "this" {
   provider = aws.iam_admin
-  
+
   count       = local.create_resources ? 1 : 0
   name        = "${var.cluster_name}-${local.name}"
   description = "IAM policy for Cert Manager"
@@ -77,7 +77,7 @@ resource "aws_iam_policy" "this" {
 
 resource "aws_iam_role_policy_attachment" "this" {
   provider = aws.iam_admin
-  
+
   count      = local.create_resources ? 1 : 0
   role       = aws_iam_role.this[0].name
   policy_arn = aws_iam_policy.this[0].arn
