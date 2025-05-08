@@ -20,50 +20,15 @@ locals {
   }
 
   # REMOVED: Old user_data_template definition that's no longer used
-  # We're now using the user_data_template_path approach which is defined in the custom_launch_templates section
+  # We're now using enable_bootstrap_user_data with pre_bootstrap_user_data in the eks_managed_node_groups section
 
-  # Custom Launch Template Configuration
+  # NOTE: We're no longer using custom_launch_templates.
+  # Instead, we'll define all launch template settings directly in eks_managed_node_groups
+  # This is the newer approach recommended for EKS module v20+
+  
+  # We keep the custom_launch_templates local as a reference for some config settings
   custom_launch_templates = {
     for name, group in var.eks_managed_node_groups : name => {
-      # Use existing launch template if specified, otherwise create a new one
-      create_launch_template = !var.use_existing_launch_templates || !contains(keys(local.launch_template_data), name)
-
-      # Launch template name from existing template or create a new one
-      name = var.use_existing_launch_templates && contains(keys(local.launch_template_data), name) ? local.launch_template_data[name].name : null
-      id   = var.use_existing_launch_templates && contains(keys(local.launch_template_data), name) ? local.launch_template_data[name].id : null
-
-      # Custom AMI settings
-      ami_id = lookup(group, "ami_id", "")
-
-      # NOTE: IMPORTANT - This creates a dependency cycle when trying to apply everything at once
-      # To properly deploy with custom AMIs, use a multi-phase deployment:
-      #
-      # Phase 1: Deploy control plane only
-      #   terraform apply -target=module.eks_cluster.module.eks.aws_eks_cluster.this[0]
-      #
-      # Phase 2: Create launch template with complete data
-      #   terraform apply -target=module.eks_cluster.module.eks.module.eks_managed_node_group[NODE_GROUP_NAME]
-      #
-      # Phase 3: Create node groups
-      #   terraform apply -target=module.eks_cluster.module.eks.aws_eks_node_group.this[NODE_GROUP_NAME]
-      #
-      # Phase 4: Deploy everything else
-      #   terraform apply
-      #
-      # This approach ensures proper node bootstrapping with all security data
-
-      # CORRECT PLACE to define user_data_template_path - this needs to be part of launch template
-      # Using template file approach with defined template variables
-      user_data_template_path = "${path.module}/templates/user-data.sh.tpl"
-      user_data_template_variables = {
-        cluster_name      = local.name
-        cluster_endpoint  = try(module.eks.cluster_endpoint, "https://placeholder-endpoint-to-be-replaced.eks.amazonaws.com")
-        cluster_ca_cert   = try(module.eks.cluster_certificate_authority_data, "UGxhY2Vob2xkZXIgQ0EgY2VydGlmaWNhdGUgdG8gYmUgcmVwbGFjZWQ=")
-        dns_cluster_ip    = local.dns_cluster_ip
-        service_ipv4_cidr = var.service_ipv4_cidr
-        max_pods          = lookup(group, "max_pods", "70")
-      }
-
       # Block device mappings for the launch template
       block_device_mappings = {
         root = {
@@ -92,7 +57,6 @@ locals {
       }
 
       # Using tag specifications for resources
-      # Note: The format expected by newer EKS module versions is different
       tags = merge(
         lookup(group, "tags", {}),
         {
@@ -105,43 +69,95 @@ locals {
     }
   }
 
-  # Configure managed node groups to use custom launch templates
+  # Configure managed node groups using the example approach
   managed_node_groups = {
-    for name, group in var.eks_managed_node_groups : name => {
-      # Basic node group configuration
-      name           = lookup(group, "name", name)
-      min_size       = lookup(group, "min_size", 1)
-      max_size       = lookup(group, "max_size", 3)
-      desired_size   = lookup(group, "desired_size", 2)
-      instance_types = lookup(group, "instance_types", ["t3.medium"])
-      capacity_type  = lookup(group, "capacity_type", "ON_DEMAND")
+    for name, group in var.eks_managed_node_groups : name => merge(
+      group,
+      {
+        # Basic node group configuration 
+        name           = lookup(group, "name", name)
+        min_size       = lookup(group, "min_size", 1)
+        max_size       = lookup(group, "max_size", 3)
+        desired_size   = lookup(group, "desired_size", 2)
+        instance_types = lookup(group, "instance_types", ["t3.medium"])
+        capacity_type  = lookup(group, "capacity_type", "ON_DEMAND")
 
-      # Use custom launch template instead of allowing EKS to create one
-      use_custom_launch_template = true
+        # Force creation of a new launch template by not using existing ones
+        launch_template_name    = null
+        launch_template_id      = null
+        launch_template_version = "$Latest"
 
-      # Force creation of a new launch template by not using existing ones
-      launch_template_name = null
-      launch_template_id   = null
+        # Have the module create and manage the launch template
+        create_launch_template      = true
+        launch_template_description = "Custom launch template for ${name} EKS managed node group ${timestamp()}"
+        
+        # Specify AMI ID directly (from node group config)
+        ami_id = lookup(group, "ami_id", "")
+        
+        # Enable the module's bootstrap user data generation
+        enable_bootstrap_user_data = true
+        
+        # Add custom script before the main bootstrap
+        pre_bootstrap_user_data = <<-EOT
+          #!/bin/bash
+          set -ex
+          
+          # Basic system configuration
+          swapoff -a
+          set -o xtrace
+          
+          # Enable IP forwarding for Kubernetes networking
+          echo 1 > /proc/sys/net/ipv4/ip_forward
+          echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
+          sysctl -p
+          
+          # Configure kernel parameters for Kubernetes
+          cat <<EOF > /etc/sysctl.d/99-kubernetes.conf
+          net.ipv4.tcp_keepalive_time = 600
+          net.ipv4.tcp_keepalive_intvl = 30
+          net.ipv4.tcp_keepalive_probes = 10
+          net.ipv4.ip_local_port_range = 1024 65000
+          net.ipv4.tcp_tw_reuse = 1
+          fs.file-max = 2097152
+          fs.inotify.max_user_watches = 524288
+          vm.max_map_count = 262144
+          EOF
+          sysctl --system
+          
+          # Log bootstrap process starting
+          echo "Node pre-bootstrap configuration complete"
+        EOT
+        
+        # Add bootstrap extra args for kubelet configuration
+        bootstrap_extra_args = "--use-max-pods false --kubelet-extra-args '--max-pods=${lookup(group, "max_pods", "70")}'"
 
-      # Custom launch template configuration
-      launch_template_version = lookup(group, "launch_template_version", "$Latest")
+        # Use custom launch template configs from our local
+        block_device_mappings = try(local.custom_launch_templates[name].block_device_mappings, {})
+        metadata_options      = try(local.custom_launch_templates[name].metadata_options, {})
+        monitoring            = try(local.custom_launch_templates[name].monitoring, {})
+        
+        # The EKS module expects a list of resource types as strings
+        tag_specifications = ["instance", "volume", "network-interface"]
 
-      # Labels and tags
-      labels = lookup(group, "labels", {})
+        # Labels for node groups
+        labels = lookup(group, "labels", {})
 
-      # Add required organizational tags
-      tags = merge(
-        lookup(group, "tags", {}),
-        {
-          # Required per organization policy "DenyWithNoCompTag"
-          "ComponentID" = var.component_id
-        }
-      )
+        # Add all necessary tags directly to the node group's tags
+        tags = merge(
+          lookup(group, "tags", {}),
+          {
+            "Name"        = lookup(group, "name", name)
+            "ClusterName" = local.name
+            "ManagedBy"   = "terraform"
+            "ComponentID" = var.component_id
+          }
+        )
 
-      # IAM role settings - use AWS managed policies for node groups
-      create_iam_role = var.create_node_iam_role
-      iam_role_arn    = var.create_node_iam_role ? null : var.node_iam_role_arn
-    }
+        # IAM role settings - use AWS managed policies for node groups
+        create_iam_role = var.create_node_iam_role
+        iam_role_arn    = var.create_node_iam_role ? null : var.node_iam_role_arn
+      }
+    )
   }
 }
 
@@ -241,11 +257,48 @@ module "eks" {
         # Always create a new launch template with our custom user data
         create_launch_template      = true
         launch_template_description = "Custom launch template for ${name} EKS managed node group ${timestamp()}"
-        ami_id                      = try(local.custom_launch_templates[name].ami_id, "")
+        # Set AMI ID directly here instead of getting it from custom_launch_templates
+        ami_id = lookup(group, "ami_id", "")
 
-        # REMOVED: user_data_template_path from here
-        # This should only be in the custom_launch_templates section
-        # The managed node group just needs to reference the launch template
+        # NEW APPROACH: Using the module's bootstrap user data mechanism
+        # This enables the module to generate the correct bootstrap script
+
+        # Enable the module's bootstrap user data generation
+        enable_bootstrap_user_data = true
+
+        # Add custom script before the main bootstrap
+        pre_bootstrap_user_data = <<-EOT
+          #!/bin/bash
+          set -ex
+          
+          # Basic system configuration
+          swapoff -a
+          set -o xtrace
+          
+          # Enable IP forwarding for Kubernetes networking
+          echo 1 > /proc/sys/net/ipv4/ip_forward
+          echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
+          sysctl -p
+          
+          # Configure kernel parameters for Kubernetes
+          cat <<EOF > /etc/sysctl.d/99-kubernetes.conf
+          net.ipv4.tcp_keepalive_time = 600
+          net.ipv4.tcp_keepalive_intvl = 30
+          net.ipv4.tcp_keepalive_probes = 10
+          net.ipv4.ip_local_port_range = 1024 65000
+          net.ipv4.tcp_tw_reuse = 1
+          fs.file-max = 2097152
+          fs.inotify.max_user_watches = 524288
+          vm.max_map_count = 262144
+          EOF
+          sysctl --system
+          
+          # Log bootstrap process starting
+          echo "Node pre-bootstrap configuration complete"
+        EOT
+
+        # Add bootstrap extra args for kubelet configuration
+        bootstrap_extra_args = "--use-max-pods false --kubelet-extra-args '--max-pods=${lookup(group, "max_pods", "70")}'"
 
         block_device_mappings = try(local.custom_launch_templates[name].block_device_mappings, {})
         metadata_options      = try(local.custom_launch_templates[name].metadata_options, {})
