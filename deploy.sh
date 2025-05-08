@@ -21,13 +21,37 @@ terraform init
 echo "Phase 1: Deploying EKS control plane..."
 terraform apply -target=module.eks_cluster.module.eks.aws_eks_cluster.this[0] -auto-approve
 
-# Phase 2: Create Launch Templates with Complete Data
-echo "Phase 2: Creating launch templates with complete bootstrap data..."
-terraform apply -target='module.eks_cluster.module.eks.aws_launch_template.this' -auto-approve
+# Get the actual resource addresses for launch templates and node groups
+echo "Finding the actual resource addresses..."
+TEMPLATES=$(terraform state list | grep 'aws_launch_template' | grep 'module.eks_cluster')
+NODEGROUPS=$(terraform state list | grep 'aws_eks_node_group' | grep 'module.eks_cluster')
+
+if [ -z "$TEMPLATES" ]; then
+  # If resources don't exist yet in state, use more aggressive pattern matching
+  echo "No launch templates found in state, using pattern targeting..."
+  # Phase 2: Create Launch Templates with Complete Data
+  echo "Phase 2: Creating launch templates with complete bootstrap data..."
+  terraform apply -target='module.eks_cluster.module.eks' -target='module.eks_cluster.module.eks.module.eks_managed_node_group["default"]' -auto-approve
+else
+  # Phase 2: Create Launch Templates with Complete Data
+  echo "Phase 2: Creating launch templates with complete bootstrap data..."
+  for TEMPLATE in $TEMPLATES; do
+    echo "Targeting template: $TEMPLATE"
+    terraform apply -target="$TEMPLATE" -auto-approve
+  done
+fi
 
 # Phase 3: Create Node Groups
 echo "Phase 3: Creating EKS node groups..."
-terraform apply -target='module.eks_cluster.module.eks.aws_eks_node_group.this' -auto-approve
+if [ -z "$NODEGROUPS" ]; then
+  echo "No node groups found in state, using pattern targeting..."
+  terraform apply -target='module.eks_cluster.module.eks.module.eks_managed_node_group["default"]' -auto-approve
+else
+  for NODEGROUP in $NODEGROUPS; do
+    echo "Targeting node group: $NODEGROUP"
+    terraform apply -target="$NODEGROUP" -auto-approve
+  done
+fi
 
 # Phase 4: Deploy Everything Else (including EKS managed add-ons)
 echo "Phase 4: Deploying remaining resources (including add-ons)..."

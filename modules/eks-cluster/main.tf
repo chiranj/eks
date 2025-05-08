@@ -52,41 +52,30 @@ locals {
       #   terraform apply -target=module.eks_cluster.module.eks.aws_eks_cluster.this[0]
       #
       # Phase 2: Create launch template with complete data
-      #   terraform apply -target=module.eks_cluster.module.eks.aws_launch_template.this[\"test_group\"]
+      #   terraform apply -target=module.eks_cluster.module.eks.module.eks_managed_node_group[NODE_GROUP_NAME]
       #
       # Phase 3: Create node groups
-      #   terraform apply -target=module.eks_cluster.module.eks.aws_eks_node_group.this[\"test_group\"]
+      #   terraform apply -target=module.eks_cluster.module.eks.aws_eks_node_group.this[NODE_GROUP_NAME]
       #
       # Phase 4: Deploy everything else
       #   terraform apply
       #
       # This approach ensures proper node bootstrapping with all security data
-      
-      # For a single-phase deployment, we use a simplified bootstrap script
-      # The EKS node group controller will handle the basic joining
-      user_data = try(
-        # If applying in phases, this will work because cluster data is available
-        base64encode(templatefile("${path.module}/templates/user-data.sh", {
-          cluster_name     = local.name 
-          cluster_endpoint = try(module.eks.cluster_endpoint, "")
-          cluster_ca_cert  = try(module.eks.cluster_certificate_authority_data, "")
-          dns_cluster_ip   = local.dns_cluster_ip
-          bootstrap_extra_args = lookup(group, "bootstrap_extra_args", "")
-          kubelet_extra_args = lookup(group, "kubelet_extra_args", "")
-          service_ipv4_cidr = var.service_ipv4_cidr
-          max_pods = lookup(group, "max_pods", "110")  # Default to 110 if not specified
-        })),
-        # Fallback to simplified script if cluster data isn't available yet
-        base64encode(<<-EOT
-#!/bin/bash
-set -o xtrace
 
-# Simplified bootstrap script that doesn't depend on cluster outputs
-# Full bootstrap will happen when the EKS node group controller handles node joining
-/etc/eks/bootstrap.sh ${local.name} \
-    --kubelet-extra-args "${lookup(group, "kubelet_extra_args", "")}"
-EOT
-        )
+      # We'll prioritize the complete bootstrap script whenever possible
+      # This change addresses the empty user-data issue by forcing the use of the complete script
+      # when using the deploy.sh phased deployment approach
+      user_data = base64encode(
+        templatefile("${path.module}/templates/user-data.sh", {
+          cluster_name         = local.name
+          cluster_endpoint     = try(module.eks.cluster_endpoint, "https://placeholder-endpoint-to-be-replaced.eks.amazonaws.com")
+          cluster_ca_cert      = try(module.eks.cluster_certificate_authority_data, "UGxhY2Vob2xkZXIgQ0EgY2VydGlmaWNhdGUgdG8gYmUgcmVwbGFjZWQ=")
+          dns_cluster_ip       = local.dns_cluster_ip
+          bootstrap_extra_args = lookup(group, "bootstrap_extra_args", "")
+          kubelet_extra_args   = lookup(group, "kubelet_extra_args", "")
+          service_ipv4_cidr    = var.service_ipv4_cidr
+          max_pods             = lookup(group, "max_pods", "110") # Default to 110 if not specified
+        })
       )
 
       # Block device mappings for the launch template

@@ -49,8 +49,18 @@ KUBELET_EXTRA_ARGS="${kubelet_extra_args}"
 BOOTSTRAP_EXTRA_ARGS="${bootstrap_extra_args}"
 %{endif}
 
-# Run EKS bootstrap script with max-pods control
-/etc/eks/bootstrap.sh $CLUSTER_NAME \
+# Check if we have valid API server URL or if it's a placeholder from the first phase
+if [[ "$API_SERVER_URL" == *"placeholder"* ]]; then
+  echo "WARNING: Using simplified bootstrap. The node will join the cluster after phase 1 completes."
+  echo "This is expected during a phased deployment."
+  
+  # Run simplified bootstrap script that doesn't use cluster certificates
+  /etc/eks/bootstrap.sh $CLUSTER_NAME \
+    --kubelet-extra-args "--max-pods=${max_pods}"
+else
+  # Run complete EKS bootstrap script with max-pods control
+  echo "Using complete bootstrap script with full cluster information."
+  /etc/eks/bootstrap.sh $CLUSTER_NAME \
     --b64-cluster-ca $B64_CLUSTER_CA \
     --apiserver-endpoint $API_SERVER_URL \
     --dns-cluster-ip ${dns_cluster_ip} \
@@ -58,6 +68,7 @@ BOOTSTRAP_EXTRA_ARGS="${bootstrap_extra_args}"
     --use-max-pods false \
     %{if bootstrap_extra_args != ""}$BOOTSTRAP_EXTRA_ARGS%{endif} \
     %{if kubelet_extra_args != ""}--kubelet-extra-args "$KUBELET_EXTRA_ARGS --max-pods=${max_pods}" %{else}--kubelet-extra-args "--max-pods=${max_pods}"%{endif}
+fi
 
 # Ensure kubelet is enabled and started
 systemctl enable kubelet
