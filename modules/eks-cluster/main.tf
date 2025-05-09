@@ -4,6 +4,11 @@
  * This module creates an Amazon EKS cluster with node groups that use custom launch templates.
  */
 
+# Fetch VPC details to get CIDR automatically
+data "aws_vpc" "selected" {
+  id = var.vpc_id
+}
+
 locals {
   name = var.cluster_name
 
@@ -159,6 +164,18 @@ module "eks" {
   # Custom security group names for better identification
   cluster_security_group_name = "${local.name}-cluster-sg"
   node_security_group_name    = "${local.name}-node-sg"
+  
+  # Add VPC CIDR to the cluster security group for kubectl access
+  cluster_security_group_additional_rules = {
+    vpc_cidr_access = {
+      description       = "Allow pods to communicate with the cluster API Server"
+      protocol          = "tcp"
+      from_port         = 443
+      to_port           = 443
+      type              = "ingress"
+      cidr_blocks       = [data.aws_vpc.selected.cidr_block]
+    }
+  }
 
   # Managed node group defaults
   eks_managed_node_group_defaults = {
