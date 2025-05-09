@@ -36,9 +36,9 @@ graph TD
 
 ```mermaid
 flowchart LR
-    A[1. Create EKS Cluster] --> B[2. Create OIDC Provider]
-    B --> C[3. Create Add-on IAM Roles]
-    C --> D[4. Install EKS Add-ons]
+    A[ Create EKS Cluster] --> B[ Create OIDC Provider]
+    B --> C[ Create Add-on IAM Roles]
+    C --> D[ Install EKS Add-ons]
 ```
 
 ## Component Overview
