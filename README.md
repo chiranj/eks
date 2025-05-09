@@ -267,38 +267,28 @@ Error: Cannot assume IAM Role
 
 
 
-helm installed into /usr/local/bin/helm
-$ helm version
-version.BuildInfo{Version:"v3.12.3", GitCommit:"3a31588ad33fe3b89af5a2a54ee1d25bfe6eaa5e", GitTreeState:"clean", GoVersion:"go1.20.7"}
-$ helm plugin install https://github.com/chartmuseum/helm-push || true
-Downloading and installing helm-push v0.10.4 ...
-https://github.com/chartmuseum/helm-push/releases/download/v0.10.4/helm-push_0.10.4_linux_amd64.tar.gz
-Installed plugin: cm-push
-$ echo "Validating Helm template rendering..."
+
+
+
+
+
+
+
+
+
+
 Validating Helm template rendering...
 $ helm template ${CHART_PATH} --debug
 install.go:200: [debug] Original chart version: ""
 install.go:217: [debug] CHART PATH: /builds/gitlab/psb/containers/helm/psb1-helm-base-chart
-Error: library charts are not installable
-helm.go:84: [debug] library charts are not installable
-main.checkIfInstallable
-	helm.sh/helm/v3/cmd/helm/install.go:298
-main.runInstall
-	helm.sh/helm/v3/cmd/helm/install.go:231
-main.newTemplateCmd.func2
-	helm.sh/helm/v3/cmd/helm/template.go:88
-github.com/spf13/cobra.(*Command).execute
-	github.com/spf13/cobra@v1.6.1/command.go:916
-github.com/spf13/cobra.(*Command).ExecuteC
-	github.com/spf13/cobra@v1.6.1/command.go:1044
-github.com/spf13/cobra.(*Command).Execute
-	github.com/spf13/cobra@v1.6.1/command.go:968
-main.main
-	helm.sh/helm/v3/cmd/helm/helm.go:83
-runtime.main
-	runtime/proc.go:250
-runtime.goexit
-	runtime/asm_amd64.s:1598
+Error: template: psb1-helm-base-chart/templates/main.yaml:13:3: executing "psb1-helm-base-chart/templates/main.yaml" at <include "psb1-helm-base-chart.networkpolicy" (list $ $containerName)>: error calling include: template: no template "psb1-helm-base-chart.networkpolicy" associated with template "gotpl"
+helm.go:84: [debug] template: psb1-helm-base-chart/templates/main.yaml:13:3: executing "psb1-helm-base-chart/templates/main.yaml" at <include "psb1-helm-base-chart.networkpolicy" (list $ $containerName)>: error calling include: template: no template "psb1-helm-base-chart.networkpolicy" associated with template "gotpl"
+
+
+Checking YAML syntax and formatting...
+$ yamllint -d relaxed ${CHART_PATH}/values.yaml
+./values.yaml
+  265:28    error    no new line character at the end of file  (new-line-at-end-of-file)
 Cleaning up project directory and file based variables
 00:01
 ERROR: Job failed: exit code 1
