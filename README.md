@@ -276,10 +276,5 @@ Error: Cannot assume IAM Role
 
 
 
-
-./values.yaml
-  266:5     error    no new line character at the end of file  (new-line-at-end-of-file)
-  266:1     error    trailing spaces  (trailing-spaces)
-Cleaning up project directory and file based variables
-00:01
-ERROR: Job failed: exit code 1
+sed -i 's/[[:space:]]*$//' ${CHART_PATH}/values.yaml
+    echo "" >> ${CHART_PATH}/values.yaml
