@@ -1,26 +1,32 @@
+
+
 /**
- * # KEDA IAM Role Module
+ * # KEDA (Kubernetes Event-driven Autoscaling) Module
  *
- * This module creates the necessary IAM roles and policies for the KEDA add-on.
+ * This module creates an IAM role for KEDA.
  */
 
 locals {
-  name             = "keda"
-  create_resources = var.create_role
-  role_name        = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
-  role_arn         = var.create_role ? aws_iam_role.this[0].arn : var.existing_role_arn
+  # Module name for resource naming
+  name = "keda"
+  
+  # IAM role configuration
+  create_role = var.create_role
+  role_name   = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
+  role_arn    = var.create_role ? aws_iam_role.keda[0].arn : var.existing_role_arn
 }
 
-data "aws_iam_policy_document" "this" {
-  count = local.create_resources ? 1 : 0
+data "aws_iam_policy_document" "keda" {
+  count = var.create_role ? 1 : 0
+  
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
 
     condition {
       test     = "StringEquals"
-      variable = "${replace(var.oidc_provider_arn, "/^arn:aws:iam::[0-9]+:oidc-provider\\//", "")}:sub"
-      values   = ["system:serviceaccount:keda:${local.name}"]
+      variable = "${substr(var.oidc_provider_arn, 8, length(var.oidc_provider_arn) - 8)}:sub"
+      values   = ["system:serviceaccount:keda:keda-operator"]
     }
 
     principals {
@@ -30,50 +36,46 @@ data "aws_iam_policy_document" "this" {
   }
 }
 
-resource "aws_iam_role" "this" {
-  provider = aws.iam_admin
-
-  count              = local.create_resources ? 1 : 0
-  name               = "${var.cluster_name}-${local.name}"
-  assume_role_policy = data.aws_iam_policy_document.this[0].json
+resource "aws_iam_role" "keda" {
+  count              = var.create_role ? 1 : 0
+  provider           = aws.iam_admin
+  assume_role_policy = data.aws_iam_policy_document.keda[0].json
+  name               = local.role_name
   tags               = var.tags
 }
 
-resource "aws_iam_policy" "this" {
-  provider = aws.iam_admin
+# KEDA policy for CloudWatch and SQS
+data "aws_iam_policy_document" "keda_policy" {
+  count = var.create_role ? 1 : 0
 
-  count       = local.create_resources ? 1 : 0
-  name        = "${var.cluster_name}-${local.name}"
-  description = "IAM policy for KEDA"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:GetMetricData",
-          "cloudwatch:ListMetrics",
-          "cloudwatch:DescribeAlarms",
-          "sqs:GetQueueAttributes",
-          "sqs:ListQueues",
-          "sqs:ListQueueTags",
-          "dynamodb:DescribeTable",
-          "dynamodb:ListTables",
-          "dynamodb:DescribeStream"
-        ]
-        Resource = "*"
-      }
+  statement {
+    effect = "Allow"
+    actions = [
+      "cloudwatch:GetMetricData",
+      "cloudwatch:GetMetricStatistics",
+      "cloudwatch:DescribeAlarms",
+      "sqs:GetQueueAttributes",
+      "sqs:GetQueueUrl",
+      "sqs:ListQueues",
+      "sqs:ListQueueTags"
     ]
-  })
-
-  tags = var.tags
+    resources = ["*"]
+  }
 }
 
-resource "aws_iam_role_policy_attachment" "this" {
-  provider = aws.iam_admin
-
-  count      = local.create_resources ? 1 : 0
-  role       = aws_iam_role.this[0].name
-  policy_arn = aws_iam_policy.this[0].arn
+resource "aws_iam_policy" "keda" {
+  count       = var.create_role ? 1 : 0
+  provider    = aws.iam_admin
+  name        = local.role_name
+  description = "IAM policy for KEDA"
+  policy      = data.aws_iam_policy_document.keda_policy[0].json
+  tags        = var.tags
 }
+
+resource "aws_iam_role_policy_attachment" "keda" {
+  count      = var.create_role ? 1 : 0
+  provider   = aws.iam_admin
+  policy_arn = aws_iam_policy.keda[0].arn
+  role       = aws_iam_role.keda[0].name
+}
+

@@ -1,51 +1,33 @@
 /**
- * # External DNS IAM Role Module
+ * # External DNS Module
  *
- * This module creates the necessary IAM roles and policies for the External DNS add-on.
- * It also optionally creates a new Route53 hosted zone if specified.
+ * This module creates an IAM role for External DNS to manage Route 53 records.
  */
 
 locals {
-  name             = "external-dns"
-  create_resources = var.create_role
-  role_name        = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
-  role_arn         = var.create_role ? aws_iam_role.this[0].arn : var.existing_role_arn
+  # Module name for resource naming
+  name = "external-dns"
 
-  # Determine if we should create a new hosted zone
-  create_hosted_zone = var.hosted_zone_source == "create" && var.domain != ""
+  # IAM role configuration
+  create_role = var.create_role
+  role_name   = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
+  role_arn    = var.create_role ? aws_iam_role.external_dns[0].arn : var.existing_role_arn
 
-  # Determine which hosted zone ID to use
-  hosted_zone_id = local.create_hosted_zone ? aws_route53_zone.this[0].id : var.existing_hosted_zone_id
-
-  # Determine the ARN pattern based on whether we have a specific hosted zone or want to allow all
-  hosted_zone_arn_pattern = local.hosted_zone_id != "" ? "arn:aws:route53:::hostedzone/${local.hosted_zone_id}" : "arn:aws:route53:::hostedzone/*"
+  # Route53 hosted zone configuration
+  create_hosted_zone = var.create_role && var.hosted_zone_source == "create"
 }
 
-# Create Route53 hosted zone if requested
-resource "aws_route53_zone" "this" {
-  count = local.create_hosted_zone ? 1 : 0
+data "aws_iam_policy_document" "external_dns" {
+  count = var.create_role ? 1 : 0
 
-  name = var.domain
-
-  tags = merge(
-    var.tags,
-    {
-      Name                                        = "${var.cluster_name}-${var.domain}"
-      "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-    }
-  )
-}
-
-data "aws_iam_policy_document" "this" {
-  count = local.create_resources ? 1 : 0
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
 
     condition {
       test     = "StringEquals"
-      variable = "${replace(var.oidc_provider_arn, "/^arn:aws:iam::[0-9]+:oidc-provider\\//", "")}:sub"
-      values   = ["system:serviceaccount:kube-system:${local.name}"]
+      variable = "${substr(var.oidc_provider_arn, 8, length(var.oidc_provider_arn) - 8)}:sub"
+      values   = ["system:serviceaccount:kube-system:external-dns"]
     }
 
     principals {
@@ -55,39 +37,40 @@ data "aws_iam_policy_document" "this" {
   }
 }
 
-resource "aws_iam_role" "this" {
-  provider = aws.iam_admin
+resource "aws_route53_zone" "zone" {
+  count = local.create_hosted_zone ? 1 : 0
 
-  count              = local.create_resources ? 1 : 0
-  name               = "${var.cluster_name}-${local.name}"
-  assume_role_policy = data.aws_iam_policy_document.this[0].json
-  tags               = var.tags
+  name          = var.domain
+  force_destroy = true
+  tags          = var.tags
 }
 
-resource "aws_iam_policy" "this" {
-  provider = aws.iam_admin
-
-  count       = local.create_resources ? 1 : 0
-  name        = "${var.cluster_name}-${local.name}"
+resource "aws_iam_policy" "external_dns" {
+  count       = var.create_role ? 1 : 0
+  provider    = aws.iam_admin
+  name        = local.role_name
   description = "IAM policy for External DNS"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
+        Effect = "Allow",
         Action = [
           "route53:ChangeResourceRecordSets"
+        ],
+        Resource = local.create_hosted_zone ? [
+          "arn:aws:route53:::hostedzone/${aws_route53_zone.zone[0].id}"
+          ] : [
+          "arn:aws:route53:::hostedzone/${var.existing_hosted_zone_id}"
         ]
-        Resource = [local.hosted_zone_arn_pattern]
       },
       {
-        Effect = "Allow"
+        Effect = "Allow",
         Action = [
           "route53:ListHostedZones",
-          "route53:ListResourceRecordSets",
-          "route53:ListTagsForResource"
-        ]
+          "route53:ListResourceRecordSets"
+        ],
         Resource = ["*"]
       }
     ]
@@ -96,10 +79,17 @@ resource "aws_iam_policy" "this" {
   tags = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "this" {
-  provider = aws.iam_admin
+resource "aws_iam_role" "external_dns" {
+  count              = var.create_role ? 1 : 0
+  provider           = aws.iam_admin
+  assume_role_policy = data.aws_iam_policy_document.external_dns[0].json
+  name               = local.role_name
+  tags               = var.tags
+}
 
-  count      = local.create_resources ? 1 : 0
-  role       = aws_iam_role.this[0].name
-  policy_arn = aws_iam_policy.this[0].arn
+resource "aws_iam_role_policy_attachment" "external_dns" {
+  count      = var.create_role ? 1 : 0
+  provider   = aws.iam_admin
+  policy_arn = aws_iam_policy.external_dns[0].arn
+  role       = aws_iam_role.external_dns[0].name
 }

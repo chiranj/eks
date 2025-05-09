@@ -1,27 +1,31 @@
+
 /**
- * # AWS Load Balancer Controller IAM Role Module
+ * # AWS Load Balancer Controller Module
  *
- * This module creates or uses existing IAM roles and policies for the AWS Load Balancer Controller add-on.
+ * This module creates an IAM role for the AWS Load Balancer Controller.
  */
 
 locals {
-  name             = "aws-load-balancer-controller"
-  create_resources = var.create_role
-  role_name        = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
-  role_arn         = var.create_role ? aws_iam_role.this[0].arn : var.existing_role_arn
+  # Module name for resource naming
+  name = "aws-loadbalancer-controller"
+  
+  # IAM role configuration
+  create_role = var.create_role
+  role_name   = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
+  role_arn    = var.create_role ? aws_iam_role.lb_controller[0].arn : var.existing_role_arn
 }
 
-data "aws_iam_policy_document" "this" {
-  count = local.create_resources ? 1 : 0
-
+data "aws_iam_policy_document" "lb_controller" {
+  count = var.create_role ? 1 : 0
+  
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
 
     condition {
       test     = "StringEquals"
-      variable = "${replace(var.oidc_provider_arn, "/^arn:aws:iam::[0-9]+:oidc-provider\\//", "")}:sub"
-      values   = ["system:serviceaccount:kube-system:${local.name}"]
+      variable = "${substr(var.oidc_provider_arn, 8, length(var.oidc_provider_arn) - 8)}:sub"
+      values   = ["system:serviceaccount:kube-system:aws-load-balancer-controller"]
     }
 
     principals {
@@ -31,124 +35,88 @@ data "aws_iam_policy_document" "this" {
   }
 }
 
-resource "aws_iam_role" "this" {
-  provider = aws.iam_admin
-
-  count              = local.create_resources ? 1 : 0
+resource "aws_iam_role" "lb_controller" {
+  count              = var.create_role ? 1 : 0
+  provider           = aws.iam_admin
+  assume_role_policy = data.aws_iam_policy_document.lb_controller[0].json
   name               = local.role_name
-  assume_role_policy = data.aws_iam_policy_document.this[0].json
   tags               = var.tags
 }
 
-# Create a custom policy or use AWS managed policies
-resource "aws_iam_policy" "this" {
-  provider = aws.iam_admin
+# AWS Load Balancer Controller inline policy
+data "aws_iam_policy_document" "lb_controller_policy" {
+  count = var.create_role ? 1 : 0
 
-  count       = local.create_resources ? 1 : 0
-  name        = "${var.cluster_name}-${local.name}"
-  description = "IAM policy for AWS Load Balancer Controller"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:DescribeAccountAttributes",
-          "ec2:DescribeAddresses",
-          "ec2:DescribeAvailabilityZones",
-          "ec2:DescribeInternetGateways",
-          "ec2:DescribeVpcs",
-          "ec2:DescribeSubnets",
-          "ec2:DescribeSecurityGroups",
-          "ec2:DescribeInstances",
-          "ec2:DescribeNetworkInterfaces",
-          "ec2:DescribeTags",
-          "ec2:GetCoipPoolUsage",
-          "ec2:DescribeCoipPools",
-          "elasticloadbalancing:DescribeLoadBalancers",
-          "elasticloadbalancing:DescribeLoadBalancerAttributes",
-          "elasticloadbalancing:DescribeListeners",
-          "elasticloadbalancing:DescribeListenerCertificates",
-          "elasticloadbalancing:DescribeSSLPolicies",
-          "elasticloadbalancing:DescribeRules",
-          "elasticloadbalancing:DescribeTargetGroups",
-          "elasticloadbalancing:DescribeTargetGroupAttributes",
-          "elasticloadbalancing:DescribeTargetHealth",
-          "elasticloadbalancing:DescribeTags"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "cognito-idp:DescribeUserPoolClient",
-          "acm:ListCertificates",
-          "acm:DescribeCertificate",
-          "iam:ListServerCertificates",
-          "iam:GetServerCertificate",
-          "waf-regional:GetWebACL",
-          "waf-regional:GetWebACLForResource",
-          "waf-regional:AssociateWebACL",
-          "waf-regional:DisassociateWebACL",
-          "wafv2:GetWebACL",
-          "wafv2:GetWebACLForResource",
-          "wafv2:AssociateWebACL",
-          "wafv2:DisassociateWebACL",
-          "shield:GetSubscriptionState",
-          "shield:DescribeProtection",
-          "shield:CreateProtection",
-          "shield:DeleteProtection"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:AuthorizeSecurityGroupIngress",
-          "ec2:RevokeSecurityGroupIngress",
-          "ec2:CreateSecurityGroup",
-          "ec2:CreateTags"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "elasticloadbalancing:CreateListener",
-          "elasticloadbalancing:DeleteListener",
-          "elasticloadbalancing:CreateRule",
-          "elasticloadbalancing:DeleteRule",
-          "elasticloadbalancing:AddTags",
-          "elasticloadbalancing:RemoveTags",
-          "elasticloadbalancing:ModifyLoadBalancerAttributes",
-          "elasticloadbalancing:SetIpAddressType",
-          "elasticloadbalancing:SetSecurityGroups",
-          "elasticloadbalancing:SetSubnets",
-          "elasticloadbalancing:DeleteLoadBalancer",
-          "elasticloadbalancing:ModifyTargetGroup",
-          "elasticloadbalancing:ModifyTargetGroupAttributes",
-          "elasticloadbalancing:DeleteTargetGroup",
-          "elasticloadbalancing:RegisterTargets",
-          "elasticloadbalancing:DeregisterTargets",
-          "elasticloadbalancing:SetWebAcl",
-          "elasticloadbalancing:ModifyListener",
-          "elasticloadbalancing:AddListenerCertificates",
-          "elasticloadbalancing:RemoveListenerCertificates",
-          "elasticloadbalancing:ModifyRule"
-        ]
-        Resource = "*"
-      }
+  statement {
+    effect = "Allow"
+    actions = [
+      "ec2:DescribeSecurityGroups",
+      "ec2:DescribeLoadBalancers",
+      "ec2:DescribeTargetGroups",
+      "ec2:DescribeVpcs",
+      "ec2:DescribeSubnets",
+      "ec2:DescribeInstances",
+      "elasticloadbalancing:DescribeLoadBalancers",
+      "elasticloadbalancing:DescribeTargetGroups",
+      "elasticloadbalancing:DescribeListeners",
+      "elasticloadbalancing:DescribeRules",
+      "elasticloadbalancing:DescribeTags",
+      "elasticloadbalancing:DescribeTargetHealth"
     ]
-  })
+    resources = ["*"]
+  }
 
-  tags = var.tags
+  statement {
+    effect = "Allow"
+    actions = [
+      "ec2:CreateSecurityGroup",
+      "ec2:CreateTags",
+      "elasticloadbalancing:CreateListener",
+      "elasticloadbalancing:CreateLoadBalancer",
+      "elasticloadbalancing:CreateRule",
+      "elasticloadbalancing:CreateTargetGroup"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "ec2:AuthorizeSecurityGroupIngress",
+      "ec2:ModifySecurityGroupRules",
+      "elasticloadbalancing:AddTags",
+      "elasticloadbalancing:DeleteListener",
+      "elasticloadbalancing:DeleteLoadBalancer",
+      "elasticloadbalancing:DeleteRule",
+      "elasticloadbalancing:DeleteTargetGroup",
+      "elasticloadbalancing:ModifyListener",
+      "elasticloadbalancing:ModifyLoadBalancerAttributes",
+      "elasticloadbalancing:ModifyRule",
+      "elasticloadbalancing:ModifyTargetGroup",
+      "elasticloadbalancing:ModifyTargetGroupAttributes",
+      "elasticloadbalancing:RegisterTargets",
+      "elasticloadbalancing:DeregisterTargets",
+      "elasticloadbalancing:SetIpAddressType",
+      "elasticloadbalancing:SetSecurityGroups",
+      "elasticloadbalancing:SetSubnets"
+    ]
+    resources = ["*"]
+  }
 }
 
-resource "aws_iam_role_policy_attachment" "this" {
-  provider = aws.iam_admin
-
-  count      = local.create_resources ? 1 : 0
-  role       = aws_iam_role.this[0].name
-  policy_arn = aws_iam_policy.this[0].arn
+resource "aws_iam_policy" "lb_controller" {
+  count       = var.create_role ? 1 : 0
+  provider    = aws.iam_admin
+  name        = local.role_name
+  description = "IAM policy for the AWS Load Balancer Controller"
+  policy      = data.aws_iam_policy_document.lb_controller_policy[0].json
+  tags        = var.tags
 }
+
+resource "aws_iam_role_policy_attachment" "lb_controller" {
+  count      = var.create_role ? 1 : 0
+  provider   = aws.iam_admin
+  policy_arn = aws_iam_policy.lb_controller[0].arn
+  role       = aws_iam_role.lb_controller[0].name
+}
+

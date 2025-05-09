@@ -1,26 +1,32 @@
+
+
 /**
- * # Fluent Bit IAM Role Module
+ * # Fluent Bit Module
  *
- * This module creates the necessary IAM roles and policies for the Fluent Bit add-on.
+ * This module creates an IAM role for Fluent Bit log agent.
  */
 
 locals {
-  name             = "fluent-bit"
-  create_resources = var.create_role
-  role_name        = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
-  role_arn         = var.create_role ? aws_iam_role.this[0].arn : var.existing_role_arn
+  # Module name for resource naming
+  name = "fluent-bit"
+  
+  # IAM role configuration
+  create_role = var.create_role
+  role_name   = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
+  role_arn    = var.create_role ? aws_iam_role.fluent_bit[0].arn : var.existing_role_arn
 }
 
-data "aws_iam_policy_document" "this" {
-  count = local.create_resources ? 1 : 0
+data "aws_iam_policy_document" "fluent_bit" {
+  count = var.create_role ? 1 : 0
+  
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
 
     condition {
       test     = "StringEquals"
-      variable = "${replace(var.oidc_provider_arn, "/^arn:aws:iam::[0-9]+:oidc-provider\\//", "")}:sub"
-      values   = ["system:serviceaccount:logging:${local.name}"]
+      variable = "${substr(var.oidc_provider_arn, 8, length(var.oidc_provider_arn) - 8)}:sub"
+      values   = ["system:serviceaccount:logging:fluent-bit"]
     }
 
     principals {
@@ -30,67 +36,46 @@ data "aws_iam_policy_document" "this" {
   }
 }
 
-resource "aws_iam_role" "this" {
-  provider = aws.iam_admin
-
-  count              = local.create_resources ? 1 : 0
-  name               = "${var.cluster_name}-${local.name}"
-  assume_role_policy = data.aws_iam_policy_document.this[0].json
+resource "aws_iam_role" "fluent_bit" {
+  count              = var.create_role ? 1 : 0
+  provider           = aws.iam_admin
+  assume_role_policy = data.aws_iam_policy_document.fluent_bit[0].json
+  name               = local.role_name
   tags               = var.tags
 }
 
-resource "aws_iam_policy" "this" {
-  provider = aws.iam_admin
+# Fluent Bit policy
+data "aws_iam_policy_document" "fluent_bit_policy" {
+  count = var.create_role ? 1 : 0
 
-  count       = local.create_resources ? 1 : 0
-  name        = "${var.cluster_name}-${local.name}"
-  description = "IAM policy for Fluent Bit"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:CreateLogGroup",
-          "logs:DescribeLogStreams",
-          "logs:PutLogEvents"
-        ]
-        Resource = [
-          "arn:aws:logs:*:*:log-group:*:log-stream:*",
-          "arn:aws:logs:*:*:log-group:*"
-        ]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:DescribeLogGroups"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "s3:PutObject",
-          "s3:GetObject",
-          "s3:ListBucket"
-        ]
-        Resource = [
-          "arn:aws:s3:::*/*",
-          "arn:aws:s3:::*"
-        ]
-      }
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:CreateLogGroup",
+      "logs:PutLogEvents",
+      "logs:DescribeLogStreams",
+      "logs:DescribeLogGroups",
+      "ec2:DescribeInstances",
+      "ec2:DescribeTags"
     ]
-  })
-
-  tags = var.tags
+    resources = ["*"]
+  }
 }
 
-resource "aws_iam_role_policy_attachment" "this" {
-  provider = aws.iam_admin
-
-  count      = local.create_resources ? 1 : 0
-  role       = aws_iam_role.this[0].name
-  policy_arn = aws_iam_policy.this[0].arn
+resource "aws_iam_policy" "fluent_bit" {
+  count       = var.create_role ? 1 : 0
+  provider    = aws.iam_admin
+  name        = local.role_name
+  description = "IAM policy for Fluent Bit"
+  policy      = data.aws_iam_policy_document.fluent_bit_policy[0].json
+  tags        = var.tags
 }
+
+resource "aws_iam_role_policy_attachment" "fluent_bit" {
+  count      = var.create_role ? 1 : 0
+  provider   = aws.iam_admin
+  policy_arn = aws_iam_policy.fluent_bit[0].arn
+  role       = aws_iam_role.fluent_bit[0].name
+}
+

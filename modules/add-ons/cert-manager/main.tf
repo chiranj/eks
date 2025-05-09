@@ -1,26 +1,30 @@
 /**
- * # Cert Manager IAM Role Module
+ * # Cert Manager Module
  *
- * This module creates the necessary IAM roles and policies for the Cert Manager add-on.
+ * This module creates an IAM role for Cert Manager to manage Route 53 records for DNS01 challenge.
  */
 
 locals {
-  name             = "cert-manager"
-  create_resources = var.create_role
-  role_name        = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
-  role_arn         = var.create_role ? aws_iam_role.this[0].arn : var.existing_role_arn
+  # Module name for resource naming
+  name = "cert-manager"
+
+  # IAM role configuration
+  create_role = var.create_role
+  role_name   = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
+  role_arn    = var.create_role ? aws_iam_role.cert_manager[0].arn : var.existing_role_arn
 }
 
-data "aws_iam_policy_document" "this" {
-  count = local.create_resources ? 1 : 0
+data "aws_iam_policy_document" "cert_manager" {
+  count = var.create_role ? 1 : 0
+
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
 
     condition {
       test     = "StringEquals"
-      variable = "${replace(var.oidc_provider_arn, "/^arn:aws:iam::[0-9]+:oidc-provider\\//", "")}:sub"
-      values   = ["system:serviceaccount:cert-manager:${local.name}"]
+      variable = "${substr(var.oidc_provider_arn, 8, length(var.oidc_provider_arn) - 8)}:sub"
+      values   = ["system:serviceaccount:cert-manager:cert-manager"]
     }
 
     principals {
@@ -30,43 +34,37 @@ data "aws_iam_policy_document" "this" {
   }
 }
 
-resource "aws_iam_role" "this" {
-  provider = aws.iam_admin
-
-  count              = local.create_resources ? 1 : 0
-  name               = local.role_name
-  assume_role_policy = data.aws_iam_policy_document.this[0].json
-  tags               = var.tags
-}
-
-resource "aws_iam_policy" "this" {
-  provider = aws.iam_admin
-
-  count       = local.create_resources ? 1 : 0
-  name        = "${var.cluster_name}-${local.name}"
+resource "aws_iam_policy" "cert_manager" {
+  count       = var.create_role ? 1 : 0
+  provider    = aws.iam_admin
+  name        = local.role_name
   description = "IAM policy for Cert Manager"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
+        Effect = "Allow",
         Action = [
-          "route53:GetChange",
-          "route53:ChangeResourceRecordSets",
-          "route53:ListResourceRecordSets"
-        ]
-        Resource = [
-          "arn:aws:route53:::hostedzone/*",
-          "arn:aws:route53:::change/*"
-        ]
+          "route53:GetChange"
+        ],
+        Resource = "arn:aws:route53:::change/*"
       },
       {
-        Effect = "Allow"
+        Effect = "Allow",
+        Action = [
+          "route53:ChangeResourceRecordSets"
+        ],
+        Resource = "arn:aws:route53:::hostedzone/*"
+      },
+      {
+        Effect = "Allow",
         Action = [
           "route53:ListHostedZonesByName",
-          "route53:ListHostedZones"
-        ]
+          "route53:ListResourceRecordSets",
+          "route53:ListHostedZones",
+          "route53:ListTagsForResource"
+        ],
         Resource = "*"
       }
     ]
@@ -75,10 +73,17 @@ resource "aws_iam_policy" "this" {
   tags = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "this" {
-  provider = aws.iam_admin
+resource "aws_iam_role" "cert_manager" {
+  count              = var.create_role ? 1 : 0
+  provider           = aws.iam_admin
+  assume_role_policy = data.aws_iam_policy_document.cert_manager[0].json
+  name               = local.role_name
+  tags               = var.tags
+}
 
-  count      = local.create_resources ? 1 : 0
-  role       = aws_iam_role.this[0].name
-  policy_arn = aws_iam_policy.this[0].arn
+resource "aws_iam_role_policy_attachment" "cert_manager" {
+  count      = var.create_role ? 1 : 0
+  provider   = aws.iam_admin
+  policy_arn = aws_iam_policy.cert_manager[0].arn
+  role       = aws_iam_role.cert_manager[0].name
 }

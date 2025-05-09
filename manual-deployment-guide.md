@@ -2,6 +2,61 @@
 
 This guide explains how to deploy the EKS cluster and its add-ons using Terraform without GitLab CI/CD.
 
+## Two-Phase Deployment for OIDC Provider and IAM Roles
+
+When deploying an EKS cluster with add-ons, we face a circular dependency:
+
+1. The EKS cluster needs to be created first to get the OIDC provider URL.
+2. The IAM roles for add-ons need the OIDC provider URL to establish trust relationships.
+3. The add-ons need the IAM roles to function correctly.
+
+We've implemented a two-phase deployment strategy to solve this problem:
+
+### Phase 1: EKS Cluster Only
+
+In the first phase, we deploy the EKS cluster without add-ons:
+
+```bash
+terraform apply -var-file=terraform.tfvars.phase1
+```
+
+The key configuration in phase 1:
+- `deploy_addons = false`
+- Create the EKS cluster with node groups
+- Establish the OIDC provider
+
+### Phase 2: Add-ons with IAM Roles
+
+Once the cluster is created and the OIDC provider exists, we deploy the add-ons:
+
+```bash
+terraform apply -var-file=terraform.tfvars.phase2
+```
+
+The key configuration in phase 2:
+- `deploy_addons = true`
+- Creates IAM roles for add-ons using the OIDC provider from phase 1
+- Deploys the add-ons with the proper IAM role ARNs
+
+### Core Add-ons
+
+The following add-ons are considered "core" and are always installed with our EKS clusters:
+
+1. **EBS CSI Driver**: Provides persistent storage for pods using Amazon EBS volumes
+2. **EFS CSI Driver**: Provides shared filesystem storage for pods using Amazon EFS
+3. **External DNS**: Automatically manages DNS records based on Kubernetes ingress resources
+4. **Cert Manager**: Automatically manages TLS certificates for Kubernetes services
+
+### Using the Deployment Script
+
+For convenience, you can use the included deployment script:
+
+```bash
+./deploy.sh
+```
+
+This script will guide you through the two-phase deployment process and handle the proper order of operations.
+
 ## Prerequisites
 
 - AWS CLI installed and configured with appropriate credentials

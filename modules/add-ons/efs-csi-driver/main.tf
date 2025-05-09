@@ -4,7 +4,19 @@
  * This module creates an IAM role for the Amazon EFS CSI Driver.
  */
 
+locals {
+  # Module name for resource naming
+  name = "efs-csi-driver"
+
+  # IAM role configuration
+  create_role = var.create_role
+  role_name   = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
+  role_arn    = var.create_role ? aws_iam_role.efs_csi[0].arn : var.existing_role_arn
+}
+
 data "aws_iam_policy_document" "efs_csi" {
+  count = var.create_role ? 1 : 0
+
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
@@ -23,8 +35,9 @@ data "aws_iam_policy_document" "efs_csi" {
 }
 
 resource "aws_iam_policy" "efs_csi" {
+  count       = var.create_role ? 1 : 0
   provider    = aws.iam_admin
-  name        = "${var.cluster_name}-AmazonEFSCSIDriverPolicy"
+  name        = local.role_name
   description = "IAM policy for Amazon EFS CSI Driver"
 
   policy = jsonencode({
@@ -70,14 +83,16 @@ resource "aws_iam_policy" "efs_csi" {
 }
 
 resource "aws_iam_role" "efs_csi" {
+  count              = var.create_role ? 1 : 0
   provider           = aws.iam_admin
-  assume_role_policy = data.aws_iam_policy_document.efs_csi.json
-  name               = "${var.cluster_name}-efs-csi-driver"
+  assume_role_policy = data.aws_iam_policy_document.efs_csi[0].json
+  name               = local.role_name
   tags               = var.tags
 }
 
-resource "aws_iam_role_policy_attachment" "efs_csi_attachment" {
+resource "aws_iam_role_policy_attachment" "efs_csi" {
+  count      = var.create_role ? 1 : 0
   provider   = aws.iam_admin
-  policy_arn = aws_iam_policy.efs_csi.arn
-  role       = aws_iam_role.efs_csi.name
+  policy_arn = aws_iam_policy.efs_csi[0].arn
+  role       = aws_iam_role.efs_csi[0].name
 }

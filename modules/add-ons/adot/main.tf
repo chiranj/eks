@@ -1,26 +1,32 @@
+
+
 /**
- * # AWS Distro for OpenTelemetry (ADOT) IAM Role Module
+ * # AWS Distro for OpenTelemetry (ADOT) Module
  *
- * This module creates the necessary IAM roles and policies for the ADOT add-on.
+ * This module creates an IAM role for the AWS Distro for OpenTelemetry.
  */
 
 locals {
-  name             = "adot"
-  create_resources = var.create_role
-  role_name        = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
-  role_arn         = var.create_role ? aws_iam_role.this[0].arn : var.existing_role_arn
+  # Module name for resource naming
+  name = "adot"
+  
+  # IAM role configuration
+  create_role = var.create_role
+  role_name   = var.create_role ? (var.role_name != "" ? var.role_name : "${var.cluster_name}-${local.name}") : var.role_name
+  role_arn    = var.create_role ? aws_iam_role.adot[0].arn : var.existing_role_arn
 }
 
-data "aws_iam_policy_document" "this" {
-  count = local.create_resources ? 1 : 0
+data "aws_iam_policy_document" "adot" {
+  count = var.create_role ? 1 : 0
+  
   statement {
     actions = ["sts:AssumeRoleWithWebIdentity"]
     effect  = "Allow"
 
     condition {
       test     = "StringEquals"
-      variable = "${replace(var.oidc_provider_arn, "/^arn:aws:iam::[0-9]+:oidc-provider\\//", "")}:sub"
-      values   = ["system:serviceaccount:opentelemetry-operator-system:${local.name}"]
+      variable = "${substr(var.oidc_provider_arn, 8, length(var.oidc_provider_arn) - 8)}:sub"
+      values   = ["system:serviceaccount:opentelemetry-operator-system:opentelemetry-operator"]
     }
 
     principals {
@@ -30,64 +36,49 @@ data "aws_iam_policy_document" "this" {
   }
 }
 
-resource "aws_iam_role" "this" {
-  provider = aws.iam_admin
-
-  count              = local.create_resources ? 1 : 0
+resource "aws_iam_role" "adot" {
+  count              = var.create_role ? 1 : 0
+  provider           = aws.iam_admin
+  assume_role_policy = data.aws_iam_policy_document.adot[0].json
   name               = local.role_name
-  assume_role_policy = data.aws_iam_policy_document.this[0].json
   tags               = var.tags
 }
 
-resource "aws_iam_policy" "this" {
-  provider = aws.iam_admin
+# ADOT permissions policy
+data "aws_iam_policy_document" "adot_policy" {
+  count = var.create_role ? 1 : 0
 
-  count       = local.create_resources ? 1 : 0
-  name        = "${var.cluster_name}-${local.name}"
-  description = "IAM policy for AWS Distro for OpenTelemetry"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "xray:PutTraceSegments",
-          "xray:PutTelemetryRecords",
-          "xray:GetSamplingRules",
-          "xray:GetSamplingTargets",
-          "xray:GetSamplingStatisticSummaries"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "cloudwatch:PutMetricData"
-        ]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:PutLogEvents",
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:DescribeLogStreams",
-          "logs:DescribeLogGroups"
-        ]
-        Resource = "*"
-      }
+  statement {
+    effect = "Allow"
+    actions = [
+      "cloudwatch:PutMetricData",
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:DescribeLogStreams",
+      "xray:PutTraceSegments",
+      "xray:PutTelemetryRecords",
+      "xray:GetSamplingRules",
+      "xray:GetSamplingTargets",
+      "xray:GetSamplingStatisticSummaries"
     ]
-  })
-
-  tags = var.tags
+    resources = ["*"]
+  }
 }
 
-resource "aws_iam_role_policy_attachment" "this" {
-  provider = aws.iam_admin
-
-  count      = local.create_resources ? 1 : 0
-  role       = aws_iam_role.this[0].name
-  policy_arn = aws_iam_policy.this[0].arn
+resource "aws_iam_policy" "adot" {
+  count       = var.create_role ? 1 : 0
+  provider    = aws.iam_admin
+  name        = local.role_name
+  description = "IAM policy for AWS Distro for OpenTelemetry"
+  policy      = data.aws_iam_policy_document.adot_policy[0].json
+  tags        = var.tags
 }
+
+resource "aws_iam_role_policy_attachment" "adot" {
+  count      = var.create_role ? 1 : 0
+  provider   = aws.iam_admin
+  policy_arn = aws_iam_policy.adot[0].arn
+  role       = aws_iam_role.adot[0].name
+}
+

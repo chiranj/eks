@@ -26,16 +26,14 @@ variable "existing_role_arn" {
   default     = ""
 }
 
-variable "tags" {
-  description = "A map of tags to add to all resources"
-  type        = map(string)
-  default     = {}
-}
-
 variable "hosted_zone_source" {
   description = "Source of the Route53 hosted zone - 'existing' to use an existing zone, 'create' to create a new one"
   type        = string
   default     = "existing"
+  validation {
+    condition     = contains(["existing", "create"], var.hosted_zone_source)
+    error_message = "The hosted_zone_source must be either 'existing' or 'create'."
+  }
 }
 
 variable "existing_hosted_zone_id" {
@@ -50,8 +48,8 @@ variable "domain" {
   default     = ""
 }
 
-variable "iam_role_provider" {
-  description = "AWS provider to use for IAM role and policy creation"
-  type        = any
-  default     = null
+variable "tags" {
+  description = "A map of tags to add to all resources"
+  type        = map(string)
+  default     = {}
 }

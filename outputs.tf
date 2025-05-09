@@ -26,7 +26,7 @@ output "cluster_oidc_issuer_url" {
 
 output "oidc_provider_arn" {
   description = "The ARN of the OIDC Provider for the EKS cluster"
-  value       = local.oidc_provider_arn
+  value       = module.eks_cluster.oidc_provider_arn
 }
 
 output "enabled_addons" {
@@ -53,10 +53,9 @@ output "enabled_addons" {
     } : null
 
     external_dns = local.addons_enabled.external_dns ? {
-      enabled                  = true
-      iam_role_arn             = try(module.external_dns_iam[0].role_arn, "")
-      hosted_zone_id           = try(module.external_dns_iam[0].hosted_zone_id, "")
-      hosted_zone_name_servers = try(module.external_dns_iam[0].hosted_zone_name_servers, [])
+      enabled              = true
+      iam_role_arn         = try(module.external_dns[0].role_arn, "")
+      is_eks_managed_addon = true
     } : null
 
     prometheus = local.addons_enabled.prometheus ? {
@@ -70,8 +69,9 @@ output "enabled_addons" {
     } : null
 
     cert_manager = local.addons_enabled.cert_manager ? {
-      enabled      = true
-      iam_role_arn = try(module.cert_manager_iam[0].role_arn, "")
+      enabled              = true
+      iam_role_arn         = try(module.cert_manager[0].role_arn, "")
+      is_eks_managed_addon = true
     } : null
 
     nginx_ingress = local.addons_enabled.nginx_ingress ? {
@@ -91,13 +91,13 @@ output "enabled_addons" {
 
     ebs_csi_driver = local.addons_enabled.ebs_csi_driver ? {
       enabled              = true
-      iam_role_arn         = try(module.ebs_csi_driver_iam[0].role_arn, "")
+      iam_role_arn         = try(module.ebs_csi_driver[0].role_arn, "")
       is_eks_managed_addon = true
     } : null
 
     efs_csi_driver = local.addons_enabled.efs_csi_driver ? {
       enabled              = true
-      iam_role_arn         = try(module.efs_csi_driver_iam[0].role_arn, "")
+      iam_role_arn         = try(module.efs_csi_driver[0].role_arn, "")
       is_eks_managed_addon = true
     } : null
   }
@@ -105,7 +105,7 @@ output "enabled_addons" {
 
 output "vpc_id" {
   description = "The ID of the VPC"
-  value       = local.create_vpc ? module.vpc[0].vpc_id : var.vpc_id
+  value       = var.vpc_id
 }
 
 output "eks_managed_node_groups" {
@@ -113,25 +113,7 @@ output "eks_managed_node_groups" {
   value       = module.eks_cluster.eks_managed_node_groups
 }
 
-output "gitlab_integration_status" {
-  description = "Status of GitLab pipeline integration"
-  value       = var.trigger_gitlab_pipeline ? "enabled" : "disabled"
-}
-
-output "gitlab_deployment_role_arn" {
-  description = "ARN of the GitLab deployment role that has access to the EKS cluster"
-  value       = local.gitlab_role_arn
-}
-
-output "gitlab_integration_env_file_path" {
-  description = "Path to the environment variables file for GitLab parent-child pipeline integration"
-  value       = var.trigger_gitlab_pipeline ? try(module.gitlab_integration[0].env_file_path, "") : ""
-}
-
-output "gitlab_integration_json_file_path" {
-  description = "Path to the JSON configuration file for GitLab parent-child pipeline integration"
-  value       = var.trigger_gitlab_pipeline ? try(module.gitlab_integration[0].json_file_path, "") : ""
-}
+# GitLab integration outputs removed
 
 # Individual IAM role ARN outputs for easy access
 output "aws_load_balancer_controller_role_arn" {
@@ -156,7 +138,7 @@ output "keda_role_arn" {
 
 output "external_dns_role_arn" {
   description = "ARN of the IAM role for External DNS"
-  value       = local.addons_enabled.external_dns ? try(module.external_dns_iam[0].role_arn, "") : ""
+  value       = local.addons_enabled.external_dns ? try(module.external_dns[0].role_arn, "") : ""
 }
 
 output "prometheus_role_arn" {
@@ -171,7 +153,7 @@ output "secrets_manager_role_arn" {
 
 output "cert_manager_role_arn" {
   description = "ARN of the IAM role for Cert Manager"
-  value       = local.addons_enabled.cert_manager ? try(module.cert_manager_iam[0].role_arn, "") : ""
+  value       = local.addons_enabled.cert_manager ? try(module.cert_manager[0].role_arn, "") : ""
 }
 
 output "nginx_ingress_role_arn" {
@@ -191,12 +173,12 @@ output "fluent_bit_role_arn" {
 
 output "ebs_csi_driver_role_arn" {
   description = "ARN of the IAM role for EBS CSI Driver"
-  value       = local.addons_enabled.ebs_csi_driver ? try(module.ebs_csi_driver_iam[0].role_arn, "") : ""
+  value       = local.addons_enabled.ebs_csi_driver ? try(module.ebs_csi_driver[0].role_arn, "") : ""
 }
 
 output "efs_csi_driver_role_arn" {
   description = "ARN of the IAM role for EFS CSI Driver"
-  value       = local.addons_enabled.efs_csi_driver ? try(module.efs_csi_driver_iam[0].role_arn, "") : ""
+  value       = local.addons_enabled.efs_csi_driver ? try(module.efs_csi_driver[0].role_arn, "") : ""
 }
 
 output "cluster_addons" {

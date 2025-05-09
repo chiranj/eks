@@ -266,6 +266,18 @@ variable "create_addon_roles" {
   default     = true
 }
 
+variable "deploy_optional_addons" {
+  description = "Whether to deploy optional add-ons. Core add-ons (EBS CSI, EFS CSI, External DNS) are always deployed"
+  type        = bool
+  default     = true
+}
+
+variable "deploy_addons" {
+  description = "Whether to deploy add-ons. Useful for two-phase deployment where EKS is created first, then add-ons."
+  type        = bool
+  default     = true
+}
+
 variable "addon_role_arns" {
   description = "Map of add-on names to existing IAM role ARNs (used when create_addon_roles is false)"
   type        = map(string)
