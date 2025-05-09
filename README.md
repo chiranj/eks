@@ -277,18 +277,9 @@ Error: Cannot assume IAM Role
 
 
 
-Validating Helm template rendering...
-$ helm template ${CHART_PATH} --debug
-install.go:200: [debug] Original chart version: ""
-install.go:217: [debug] CHART PATH: /builds/gitlab/psb/containers/helm/psb1-helm-base-chart
-Error: template: psb1-helm-base-chart/templates/main.yaml:13:3: executing "psb1-helm-base-chart/templates/main.yaml" at <include "psb1-helm-base-chart.networkpolicy" (list $ $containerName)>: error calling include: template: no template "psb1-helm-base-chart.networkpolicy" associated with template "gotpl"
-helm.go:84: [debug] template: psb1-helm-base-chart/templates/main.yaml:13:3: executing "psb1-helm-base-chart/templates/main.yaml" at <include "psb1-helm-base-chart.networkpolicy" (list $ $containerName)>: error calling include: template: no template "psb1-helm-base-chart.networkpolicy" associated with template "gotpl"
-
-
-Checking YAML syntax and formatting...
-$ yamllint -d relaxed ${CHART_PATH}/values.yaml
 ./values.yaml
-  265:28    error    no new line character at the end of file  (new-line-at-end-of-file)
+  266:5     error    no new line character at the end of file  (new-line-at-end-of-file)
+  266:1     error    trailing spaces  (trailing-spaces)
 Cleaning up project directory and file based variables
 00:01
 ERROR: Job failed: exit code 1
