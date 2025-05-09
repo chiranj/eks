@@ -273,6 +273,28 @@ Error: Cannot assume IAM Role
 
 
 
+Executing "step_script" stage of the job script
+00:01
+Using docker image sha256:53cab8ee5076b038752c6c5dd3f55f6ab3ba61b5e1a6ae47bd9c4645d7689a33 for amazon/aws-cli:latest with digest amazon/aws-cli@sha256:adb8cddfa238cebed042b483e9281d7d5f7723629055f41809be0bb880c83485 ...
+usage: aws [options] <command> <subcommand> [<subcommand> ...] [parameters]
+To see help text, you can run:
+  aws help
+  aws <command> help
+  aws <command> <subcommand> help
+aws: error: argument command: Invalid choice, valid choices are:
+accessanalyzer                           | account                                 
+acm                                      | acm-pca                                 
+amp                                      | amplify                                 
+amplifybackend                           | amplifyuibuilder                        
+apigateway                               | apigatewaymanagementapi                 
+apigatewayv2                             | appconfig                               
+appconfigdata                            | appfabric                               
+appflow                                  | appintegrations                         
+application-autoscaling                  | application-insights                    
+application-signals                      | applicationcostprofiler                 
+appmesh                                  | apprunner                               
+appstream                                | appsync                                 
+apptest                                  | arc-zonal-shift                         
 
 
 
