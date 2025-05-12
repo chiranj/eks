@@ -179,32 +179,277 @@ aws ec2 describe-route-tables --route-table-ids $ROUTE_TABLE_ID
 
 
 
-# Check Transit Gateway route tables
-aws ec2 describe-transit-gateway-route-tables --filters Name=transit-gateway-id,Values=tgw-0b812ae5f901d9a1c
-
-# Check specific route table
-aws ec2 get-transit-gateway-route-table-associations --transit-gateway-route-table-id YOUR_TGW_RTB_ID
-
-# Check if you have EKS VPC endpoints
-aws ec2 describe-vpc-endpoints --filters "Name=vpc-id,Values=YOUR_VPC_ID" "Name=service-name,Values=com.amazonaws.YOUR_REGION.eks"
-
-# Check if your EKS cluster is private-only
-aws eks describe-cluster --name YOUR_CLUSTER_NAME --query "cluster.resourcesVpcConfig.endpointPrivateAccess"
-
-aws eks describe-cluster --name your-cluster-name --query "cluster.resourcesVpcConfig.{PublicAccess:endpointPublicAccess,PrivateAccess:endpointPrivateAccess}"
 
 
-# First get your EKS cluster's VPC ID
-VPC_ID=$(aws eks describe-cluster --name your-cluster-name --query "cluster.resourcesVpcConfig.vpcId" --output text)
-
-# Then check for EKS VPC endpoints in that VPC
-aws ec2 describe-vpc-endpoints \
-  --filters "Name=vpc-id,Values=$VPC_ID" "Name=service-name,Values=com.amazonaws.region.eks*"
 
 
-  aws ec2 describe-managed-prefix-lists --prefix-list-ids pl-63a5400a
 
 
-  aws ec2 describe-vpc-endpoint-services \
-  --filter "Name=service-name,Values=com.amazonaws.region.eks*" \
-  --query "ServiceDetails[*].{Name:ServiceName,Type:ServiceType}"
+
+
+
+
+
+
+# EKS Architecture Guide: Ingress and Observability
+
+## 1. Ingress Architecture Options
+
+```mermaid
+graph TD
+    %% Option 1: Route53 → AWS Load Balancer → Nginx Ingress
+    A1[Internet] --> B1[Route53]
+    B1 --> C1[AWS Load Balancer]
+    C1 --> D1[Nginx Ingress Controller]
+    D1 --> E1[Kubernetes Services]
+    E1 --> F1[Pods]
+    G1[external-DNS] -.-> B1
+    
+    %% Option 2: Route53 → AWS Load Balancer → Traefik
+    A2[Internet] --> B2[Route53]
+    B2 --> C2[AWS Load Balancer]
+    C2 --> D2[Traefik]
+    D2 --> E2[Kubernetes Services]
+    E2 --> F2[Pods]
+    G2[external-DNS] -.-> B2
+    
+    %% Option 3: Route53 → Nginx DaemonSet (Direct to Nodes)
+    A3[Internet] --> B3[Route53]
+    B3 --> D3[Nginx DaemonSet on Worker Nodes]
+    D3 --> E3[Kubernetes Services]
+    E3 --> F3[Pods]
+    G3[external-DNS] -.-> B3
+    
+    %% Styling
+    classDef aws fill:#FF9900,stroke:#232F3E,color:white;
+    classDef k8s fill:#326CE5,stroke:#333,color:white;
+    classDef nginx fill:#009639,stroke:#333,color:white;
+    classDef traefik fill:#24A1C1,stroke:#333,color:white;
+    classDef internet fill:#FFFFFF,stroke:#333,color:black;
+    
+    class B1,B2,B3,C1,C2 aws;
+    class E1,E2,E3,F1,F2,F3,G1,G2,G3 k8s;
+    class D1,D3 nginx;
+    class D2 traefik;
+    class A1,A2,A3 internet;
+```
+
+### 1.1 Route53 → AWS Load Balancer → Nginx Ingress
+
+This is the standard, AWS-recommended architecture for EKS clusters.
+
+**Benefits:**
+- **AWS WAF Integration**: Protection against common web exploits and attacks
+- **AWS Shield**: DDoS protection at the edge
+- **Health Checks**: Automatic node health monitoring and traffic routing
+- **SSL Termination**: AWS Certificate Manager integration
+- **Access Logs**: Central logging of all ingress traffic
+- **Sticky Sessions**: Session affinity for stateful applications
+- **Cross-zone Load Balancing**: Even distribution across AZs
+
+**Configuration Notes:**
+- Requires AWS Load Balancer Controller in the cluster
+- Ingress resources need specific AWS annotations
+- external-DNS creates Route53 records pointing to the AWS LB
+
+### 1.2 Route53 → AWS Load Balancer → Traefik
+
+Modern alternative using Traefik instead of Nginx for advanced traffic management.
+
+**Benefits (in addition to standard AWS LB benefits):**
+- **IngressRoute CRDs**: More flexible routing definitions
+- **Middleware Concept**: Reusable routing components
+- **Better Dashboard**: Enhanced visibility into traffic flows
+- **Modern API Gateway Features**: Rate limiting, circuit breaking
+- **WebSocket Support**: Better handling of persistent connections
+- **Canary Deployments**: Advanced traffic splitting capabilities
+- **Let's Encrypt Integration**: Automated certificate management
+- **Reduced Annotation Complexity**: Less reliance on lengthy annotations
+
+**Future-Proofing Advantages of Traefik over Nginx:**
+- Better CRD-based configuration model
+- More cloud-native design principles
+- Superior middleware chain concept
+- Enhanced observability features
+- More modern architecture (designed for containerized workloads)
+- Better separation of concerns
+- Regular feature updates focused on Kubernetes
+
+### 1.3 Route53 → Nginx (deployed as DaemonSet)
+
+The "direct-to-node" approach using DNS round-robin instead of a dedicated load balancer.
+
+**Benefits:**
+- **Cost Efficiency**: No AWS Load Balancer charges
+- **Simplicity**: Fewer moving parts in the architecture
+- **Reduced Latency**: One less hop in the traffic flow
+- **Easier Troubleshooting**: Direct node access for debugging
+
+**Limitations:**
+- **No WAF Protection**: Missing AWS WAF integration
+- **No DDoS Protection**: No AWS Shield at the edge
+- **Limited Health Checks**: DNS can't detect node failures
+- **No SSL Termination at Edge**: Certificate management handled by Nginx
+- **No Access Logs Aggregation**: Logs distributed across nodes
+- **Network Exposure**: Worker nodes directly exposed to internet
+- **Less Sophisticated Load Balancing**: Simple DNS round-robin
+
+## 2. Observability Stack
+
+### 2.1 Self-Hosted Observability (Multi-Cloud)
+
+**Core Components (Helm Charts):**
+- **Prometheus** (kube-prometheus-stack)
+- **Thanos** (thanos)
+- **Grafana** (grafana)
+- **Loki** (loki-stack)
+- **Promtail** (included with loki-stack)
+- **Tempo** (tempo)
+- **OpenTelemetry Collector** (opentelemetry-collector)
+
+**Benefits of Self-Hosted for Multi-Cloud:**
+- **Consistency**: Identical deployments across AWS, Azure, GCP
+- **Portability**: Easy migration between cloud providers
+- **Control**: Complete configuration flexibility
+- **Knowledge Transfer**: Skills applicable across environments
+- **No Vendor Lock-in**: Independent from cloud-specific services
+- **Feature Access**: Immediate access to open-source updates
+- **Upgrade Control**: Schedule upgrades on your timeline
+- **Cost Optimization**: Tune resource allocation for your needs
+
+### 2.2 AWS Managed Services (AWS-Only)
+
+If staying exclusively on AWS for the next 5+ years:
+
+**Managed Components:**
+- **Amazon Managed Service for Prometheus**
+- **Amazon Managed Grafana**
+- **Amazon CloudWatch for logs** (alternative to Loki)
+- **AWS X-Ray** (alternative to Tempo)
+- **AWS Distro for OpenTelemetry** (ADOT)
+
+**Benefits of AWS Managed Services:**
+- **Reduced Operational Overhead**: AWS handles upgrades and scaling
+- **Integration with AWS Services**: Native connections to AWS resources
+- **IAM-Based Security**: Use existing AWS security controls
+- **SLA-Backed Reliability**: AWS service-level agreements
+- **Simplified Deployment**: Less infrastructure to manage
+- **AWS Support**: Access to AWS technical support
+
+### 2.3 Alerting Architecture
+
+**Single Grafana Alerting System:**
+- Unified alerting across all data sources (metrics, logs, traces)
+- Built-in Alertmanager functionality
+- Consistent interface for creating and managing alerts
+- Integrated notification channels
+- Alert grouping and deduplication
+- Support for silences and maintenance windows
+
+**Alert Sources:**
+- Prometheus metrics
+- Loki log patterns
+- Tempo trace conditions
+- Cross-source alerts (combining multiple data types)
+
+### 2.4 Thanos for Long-Term Metric Storage
+
+**Key Functions:**
+- Extends Prometheus retention capabilities
+- Provides global query view across clusters
+- Handles downsampling for efficient storage
+- Enables high availability for Prometheus
+- Uses object storage (S3) for long-term data
+
+**Configuration Notes:**
+- Only stores metrics (not logs or traces)
+- Complements Prometheus, doesn't replace it
+- Use Thanos Sidecar with Prometheus
+- Thanos Store for accessing object storage
+- Thanos Query for unified querying
+
+### 2.5 Read-Only Grafana for Cross-Cluster Visibility
+
+**Implementation:**
+- Deploy "view-only" Grafana instance with datasources pointing to other clusters
+- Configure read-only permissions to prevent changes
+- Use consistent dashboards across environments
+- Enable exemplars for metrics-to-traces correlation
+- Implement federated access controls
+
+**Benefits:**
+- Single pane of glass for multiple clusters
+- No cross-cluster dependencies
+- Preserves isolation between environments
+- Enables cross-service troubleshooting
+- Supports team-specific views
+
+### 2.6 Single Grafana Alerting
+
+**Centralized Configuration:**
+- One alert system for all data types
+- Alert rules stored as code for version control
+- Configurable notification policies
+- Customizable alert templates
+- Integrations with incident management tools
+
+**Integration Points:**
+- Slack/Teams for team notifications
+- PagerDuty/OpsGenie for on-call management
+- Email for non-urgent alerts
+- Webhooks for custom integrations
+- Mobile app notifications
+
+## 3. Complete Observability Stack
+
+```mermaid
+graph TD
+    %% Applications and Data Collection
+    Apps[Application Pods] --> OT[OpenTelemetry Collector]
+    
+    %% Telemetry Pipeline
+    OT --> P[Prometheus]
+    OT --> L[Loki]
+    OT --> T[Tempo]
+    
+    %% Storage
+    P --> Th[Thanos]
+    Th --> OS1[(Object Storage)]
+    L --> OS2[(Object Storage)]
+    T --> OS3[(Object Storage)]
+    
+    %% Visualization and Alerting
+    P --> G[Grafana]
+    L --> G
+    T --> G
+    Th --> G
+    
+    G --> GA[Grafana Alerting]
+    GA --> N1[Slack]
+    GA --> N2[PagerDuty]
+    GA --> N3[Email]
+    
+    %% Cross-Cluster Visibility
+    P2[Prometheus Cluster 2] -.-> ROG[Read-Only Grafana]
+    L2[Loki Cluster 2] -.-> ROG
+    T2[Tempo Cluster 2] -.-> ROG
+    
+    %% Styling
+    classDef metrics fill:#E6522C,stroke:#333,color:white;
+    classDef logs fill:#3C444C,stroke:#333,color:white;
+    classDef traces fill:#00AEC7,stroke:#333,color:white;
+    classDef storage fill:#FFC107,stroke:#333,color:black;
+    classDef visualization fill:#3F51B5,stroke:#333,color:white;
+    classDef collector fill:#009688,stroke:#333,color:white;
+    classDef notifications fill:#7B1FA2,stroke:#333,color:white;
+    
+    class P,Th,P2 metrics;
+    class L,L2 logs;
+    class T,T2 traces;
+    class OS1,OS2,OS3 storage;
+    class G,ROG,GA visualization;
+    class N1,N2,N3 notifications;
+    class OT collector;
+```
+
+This architecture provides a comprehensive, future-proof approach to both ingress management and observability, with options for both AWS-specific and multi-cloud environments.
