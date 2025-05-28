@@ -453,3 +453,10 @@ graph TD
 ```
 
 This architecture provides a comprehensive, future-proof approach to both ingress management and observability, with options for both AWS-specific and multi-cloud environments.
+
+
+
+yq -n '.service.annotations."service.beta.kubernetes.io/aws-load-balancer-subnets" = env(AWS_SUBNET_IDS)' > values-override.yaml
+    #- |
+    #  yq -n '.service.annotations["external-dns.alpha.kubernetes.io/hostname"] = env(AWS_DOMAIN_NAME)' > values-override.yaml
+
