@@ -460,3 +460,6 @@ yq -n '.service.annotations."service.beta.kubernetes.io/aws-load-balancer-subnet
     #- |
     #  yq -n '.service.annotations["external-dns.alpha.kubernetes.io/hostname"] = env(AWS_DOMAIN_NAME)' > values-override.yaml
 
+
+
+'.extraArgs += ["--default-targets=" + env(NLB_HOSTNAME)]'
