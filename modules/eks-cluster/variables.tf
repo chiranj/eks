@@ -73,7 +73,19 @@ variable "use_existing_launch_templates" {
 }
 
 variable "launch_template_arns" {
-  description = "Map of node group names to existing launch template ARNs to use"
+  description = "Map of node group names to existing launch template ARNs to use (deprecated, use launch_template_ids instead)"
+  type        = map(string)
+  default     = {}
+}
+
+variable "launch_template_ids" {
+  description = "Map of node group names to existing launch template IDs to use"
+  type        = map(string)
+  default     = {}
+}
+
+variable "launch_template_versions" {
+  description = "Map of node group names to existing launch template versions to use"
   type        = map(string)
   default     = {}
 }
@@ -126,10 +138,10 @@ variable "tags" {
   default     = {}
 }
 
-variable "enable_ebs_csi_driver" {
-  description = "Enable Amazon EBS CSI Driver as a managed add-on"
-  type        = bool
-  default     = false
+variable "node_group_ami_id" {
+  description = "AMI ID to use for all EKS managed node groups (optional)"
+  type        = string
+  default     = ""
 }
 
 variable "ebs_csi_driver_role_arn" {
@@ -138,14 +150,20 @@ variable "ebs_csi_driver_role_arn" {
   default     = ""
 }
 
-variable "enable_efs_csi_driver" {
-  description = "Enable Amazon EFS CSI Driver as a managed add-on"
-  type        = bool
-  default     = false
-}
-
 variable "efs_csi_driver_role_arn" {
   description = "IAM role ARN for EFS CSI Driver service account"
+  type        = string
+  default     = ""
+}
+
+variable "external_dns_role_arn" {
+  description = "IAM role ARN for External DNS service account"
+  type        = string
+  default     = ""
+}
+
+variable "cert_manager_role_arn" {
+  description = "IAM role ARN for Cert Manager service account"
   type        = string
   default     = ""
 }
