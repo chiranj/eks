@@ -29,6 +29,11 @@ output "cluster_oidc_issuer_url" {
   value       = module.eks.cluster_oidc_issuer_url
 }
 
+output "oidc_provider_arn" {
+  description = "The ARN of the OIDC Provider for the EKS cluster"
+  value       = module.eks.oidc_provider_arn
+}
+
 output "eks_managed_node_groups" {
   description = "EKS managed node groups"
   value       = module.eks.eks_managed_node_groups
@@ -45,11 +50,42 @@ output "cluster_addons" {
 }
 
 output "ebs_csi_driver_enabled" {
-  description = "Whether EBS CSI Driver add-on is enabled"
-  value       = var.enable_ebs_csi_driver
+  description = "Whether EBS CSI Driver add-on is enabled (always true)"
+  value       = true
 }
 
 output "efs_csi_driver_enabled" {
-  description = "Whether EFS CSI Driver add-on is enabled"
-  value       = var.enable_efs_csi_driver
+  description = "Whether EFS CSI Driver add-on is enabled (always true)"
+  value       = true
+}
+
+output "external_dns_enabled" {
+  description = "Whether External DNS add-on is enabled (always true)"
+  value       = true
+}
+
+output "cert_manager_enabled" {
+  description = "Whether Cert Manager add-on is enabled (always true)"
+  value       = true
+}
+
+# Core add-on IAM role ARNs (pass-through from input variables)
+output "ebs_csi_driver_role_arn" {
+  description = "ARN of the IAM role for EBS CSI Driver"
+  value       = var.ebs_csi_driver_role_arn
+}
+
+output "efs_csi_driver_role_arn" {
+  description = "ARN of the IAM role for EFS CSI Driver"
+  value       = var.efs_csi_driver_role_arn
+}
+
+output "external_dns_role_arn" {
+  description = "ARN of the IAM role for External DNS"
+  value       = var.external_dns_role_arn
+}
+
+output "cert_manager_role_arn" {
+  description = "ARN of the IAM role for Cert Manager"
+  value       = var.cert_manager_role_arn
 }
