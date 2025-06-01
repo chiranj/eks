@@ -1,8 +1,13 @@
 /**
  * # EKS Cluster Module
  * 
- * This module creates an Amazon EKS cluster with node groups.
+ * This module creates an Amazon EKS cluster with node groups that use custom launch templates.
  */
+
+# Fetch VPC details to get CIDR automatically
+data "aws_vpc" "selected" {
+  id = var.vpc_id
+}
 
 locals {
   name = var.cluster_name
@@ -10,189 +15,130 @@ locals {
   # DNS cluster IP based on service CIDR
   dns_cluster_ip = cidrhost(var.service_ipv4_cidr, 10)
 
-  # Extract launch template details from ARNs for pre-created templates
-  launch_template_data = {
-    for name, arn in var.launch_template_arns : name => {
-      # ARN format: arn:aws:ec2:region:account-id:launch-template/lt-id
-      name = reverse(split("/", arn))[0]
-      id   = reverse(split("/", arn))[0]
-    } if contains(keys(var.eks_managed_node_groups), name)
-  }
+  # Check if we should use custom launch templates from outside the module
+  use_existing_launch_templates = var.use_existing_launch_templates
 
-  # REMOVED: Old user_data_template definition that's no longer used
-  # We're now using enable_bootstrap_user_data with pre_bootstrap_user_data in the eks_managed_node_groups section
+  # Default tags for resources
+  default_tags = merge(
+    var.tags,
+    {
+      "ClusterName" = local.name
+      "ManagedBy"   = "terraform"
+    },
+    var.component_id != "" ? { "ComponentID" = var.component_id } : {}
+  )
 
-  # NOTE: We're no longer using custom_launch_templates.
-  # Instead, we'll define all launch template settings directly in eks_managed_node_groups
-  # This is the newer approach recommended for EKS module v20+
-  
-  # We keep the custom_launch_templates local as a reference for some config settings
-  custom_launch_templates = {
-    for name, group in var.eks_managed_node_groups : name => {
-      # Block device mappings for the launch template
-      block_device_mappings = {
-        root = {
-          device_name = "/dev/xvda"
-          ebs = {
-            volume_size           = lookup(group, "disk_size", 100)
-            volume_type           = "gp3" # Required: Must use gp3 instead of gp2
-            iops                  = 3000
-            throughput            = 150
-            encrypted             = true # Required: Must be encrypted
-            delete_on_termination = true
-          }
-        }
-      }
-
-      # Required monitoring 
-      monitoring = {
-        enabled = true
-      }
-
-      # Required metadata settings
-      metadata_options = {
-        http_endpoint               = "enabled"
-        http_put_response_hop_limit = 2
-        http_tokens                 = "required"
-      }
-
-      # Using tag specifications for resources
-      tags = merge(
-        lookup(group, "tags", {}),
-        {
-          Name        = lookup(group, "name", name)
-          ClusterName = local.name
-          ManagedBy   = "terraform"
-        },
-        var.component_id != "" ? { ComponentID = var.component_id } : {}
-      )
-    }
-  }
-
-  # Configure managed node groups using the example approach
+  # Configure managed node groups with sensible defaults
   managed_node_groups = {
     for name, group in var.eks_managed_node_groups : name => merge(
-      group,
       {
-        # Basic node group configuration 
-        name           = lookup(group, "name", name)
-        min_size       = lookup(group, "min_size", 1)
-        max_size       = lookup(group, "max_size", 3)
-        desired_size   = lookup(group, "desired_size", 2)
-        instance_types = lookup(group, "instance_types", ["t3.medium"])
-        capacity_type  = lookup(group, "capacity_type", "ON_DEMAND")
-
-        # Force creation of a new launch template by not using existing ones
-        launch_template_name    = null
-        launch_template_id      = null
-        launch_template_version = "$Latest"
-
-        # Have the module create and manage the launch template
-        create_launch_template      = true
-        launch_template_description = "Custom launch template for ${name} EKS managed node group ${timestamp()}"
-        
-        # Specify AMI ID directly (from node group config)
-        ami_id = lookup(group, "ami_id", "")
-        
-        # Enable the module's bootstrap user data generation
-        enable_bootstrap_user_data = true
-        
-        # Add custom script before the main bootstrap
-        pre_bootstrap_user_data = <<-EOT
-          #!/bin/bash
-          set -ex
-          
-          # Basic system configuration
-          swapoff -a
-          set -o xtrace
-          
-          # Enable IP forwarding for Kubernetes networking
-          echo 1 > /proc/sys/net/ipv4/ip_forward
-          echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
-          sysctl -p
-          
-          # Configure kernel parameters for Kubernetes
-          cat <<EOF > /etc/sysctl.d/99-kubernetes.conf
-          net.ipv4.tcp_keepalive_time = 600
-          net.ipv4.tcp_keepalive_intvl = 30
-          net.ipv4.tcp_keepalive_probes = 10
-          net.ipv4.ip_local_port_range = 1024 65000
-          net.ipv4.tcp_tw_reuse = 1
-          fs.file-max = 2097152
-          fs.inotify.max_user_watches = 524288
-          vm.max_map_count = 262144
-          EOF
-          sysctl --system
-          
-          # Log bootstrap process starting
-          echo "Node pre-bootstrap configuration complete"
-        EOT
-        
-        # Add bootstrap extra args for kubelet configuration
-        bootstrap_extra_args = "--use-max-pods false --kubelet-extra-args '--max-pods=${lookup(group, "max_pods", "70")}'"
-
-        # Use custom launch template configs from our local
-        block_device_mappings = try(local.custom_launch_templates[name].block_device_mappings, {})
-        metadata_options      = try(local.custom_launch_templates[name].metadata_options, {})
-        monitoring            = try(local.custom_launch_templates[name].monitoring, {})
-        
-        # The EKS module expects a list of resource types as strings
-        tag_specifications = ["instance", "volume", "network-interface"]
-
-        # Labels for node groups
-        labels = lookup(group, "labels", {})
-
-        # Add all necessary tags directly to the node group's tags
-        tags = merge(
-          lookup(group, "tags", {}),
-          {
-            "Name"        = lookup(group, "name", name)
-            "ClusterName" = local.name
-            "ManagedBy"   = "terraform"
-            "ComponentID" = var.component_id
-          }
-        )
+        # Basic node group configuration with defaults 
+        name           = name
+        min_size       = 1
+        max_size       = 3
+        desired_size   = 2
+        instance_types = ["t3.medium"]
+        capacity_type  = "ON_DEMAND"
 
         # IAM role settings - use AWS managed policies for node groups
         create_iam_role = var.create_node_iam_role
         iam_role_arn    = var.create_node_iam_role ? null : var.node_iam_role_arn
-      }
+
+        # Always use custom launch template
+        use_custom_launch_template = true
+      },
+      group # Override with provided values from var.eks_managed_node_groups
     )
   }
 }
 
-# Restore custom IAM policy for launch template management
-resource "aws_iam_policy" "launch_template_access" {
-  name        = "${local.name}-ec2-full-access"
-  description = "Provides all necessary EC2 permissions for EKS node groups with custom AMIs"
+# Create custom launch templates only when not using existing ones
+resource "aws_launch_template" "node_group_launch_template" {
+  # Only create launch templates if we're not using existing ones
+  count = local.use_existing_launch_templates ? 0 : 1
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:CreateLaunchTemplate",
-          "ec2:CreateTags",
-          "ec2:DescribeLaunchTemplates",
-          "ec2:DescribeLaunchTemplateVersions",
-          "ec2:ModifyLaunchTemplate",
-          "ec2:DeleteLaunchTemplate",
-          "ec2:RunInstances",
-          "ec2:DescribeInstances",
-          "ec2:DescribeInstanceTypes",
-          "ec2:DescribeImages"
-        ]
-        Resource = "*"
-      }
-    ]
-  })
+  # Use a single launch template for all node groups
+  name                   = "${local.name}-eks-node-template"
+  description            = "Custom launch template for EKS managed node groups"
+  update_default_version = true
+
+  # Use the node_group_ami_id if specified, otherwise EKS selects the appropriate AMI
+  image_id = var.node_group_ami_id != "" ? var.node_group_ami_id : null
+
+  # User data to properly bootstrap nodes to the cluster
+  # Note: The EKS module will update this template with proper values at runtime
+  # First phase bootstrap with placeholders; EKS module will complete the actual bootstrap
+  user_data = base64encode(templatefile("${path.module}/templates/user-data.tpl", {
+    cluster_name         = local.name
+    cluster_endpoint     = "placeholder-for-cluster-endpoint"
+    cluster_ca_cert      = "placeholder-for-cluster-ca"
+    dns_cluster_ip       = local.dns_cluster_ip
+    service_ipv4_cidr    = var.service_ipv4_cidr
+    kubelet_extra_args   = ""
+    bootstrap_extra_args = "--use-max-pods false"
+    max_pods             = "110"
+  }))
+
+  # Security groups will be assigned by the EKS module when it creates the node group
+
+  # Root volume configuration
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = 100
+      volume_type           = "gp3"
+      iops                  = 3000
+      throughput            = 150
+      encrypted             = true
+      delete_on_termination = true
+    }
+  }
+
+  # Security hardening for EC2 metadata service
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_put_response_hop_limit = 2
+    http_tokens                 = "required" # IMDSv2 required for security
+  }
+
+  # Enable detailed monitoring for better metrics
+  monitoring {
+    enabled = true
+  }
+
+  # Define tags for the launch template
+  tags = merge(
+    local.default_tags,
+    {
+      Name = "${local.name}-eks-node-template"
+    }
+  )
+
+  # Tag resources created from this launch template
+  dynamic "tag_specifications" {
+    for_each = toset(["instance", "volume", "network-interface"])
+    content {
+      resource_type = tag_specifications.value
+      tags = merge(
+        local.default_tags,
+        {
+          Name                                  = "${local.name}-${tag_specifications.value}"
+          "kubernetes.io/cluster/${local.name}" = "owned"
+        }
+      )
+    }
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 20.0"
 
+  # Basic cluster configuration
   cluster_name                    = local.name
   cluster_version                 = var.cluster_version
   vpc_id                          = var.vpc_id
@@ -200,38 +146,40 @@ module "eks" {
   control_plane_subnet_ids        = var.control_plane_subnet_ids
   cluster_endpoint_public_access  = var.cluster_endpoint_public_access
   cluster_endpoint_private_access = var.cluster_endpoint_private_access
+  cluster_ip_family               = var.cluster_ip_family
+  cluster_service_ipv4_cidr       = var.service_ipv4_cidr
 
   # IAM role configuration for cluster
   create_iam_role = var.create_cluster_iam_role
   iam_role_arn    = var.create_cluster_iam_role ? null : var.cluster_iam_role_arn
 
-  # Always create security group
-  create_node_security_group = true
-
-  # =================================================================
-  # RESTORED: Using custom launch templates for node groups
-  # =================================================================
-
-  # Add custom EC2 permissions policy for launch template management
+  # Add only non-default IAM policies - the following policies are already attached by default:
+  # - AmazonEKSWorkerNodePolicy
+  # - AmazonEC2ContainerRegistryReadOnly
+  # - AmazonEKS_CNI_Policy
   iam_role_additional_policies = {
-    AmazonEKSWorkerNodePolicy          = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-    AmazonEC2ContainerRegistryReadOnly = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
-    AmazonEKS_CNI_Policy               = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-    AmazonSSMManagedInstanceCore       = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-    EC2FullAccess                      = aws_iam_policy.launch_template_access.arn
+    AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
   }
 
-  # Standard EKS cluster settings
-  create_cloudwatch_log_group            = true
-  cloudwatch_log_group_retention_in_days = 90
-  cluster_enabled_log_types              = ["api", "audit", "authenticator"]
-  cluster_security_group_name            = "${local.name}-cluster-sg"
-  node_security_group_name               = "${local.name}-node-sg"
+  # Custom security group names for better identification
+  cluster_security_group_name = "${local.name}-cluster-sg"
+  node_security_group_name    = "${local.name}-node-sg"
 
-  # Organizational tagging requirements
+  # Add VPC CIDR to the cluster security group for kubectl access
+  cluster_security_group_additional_rules = {
+    vpc_cidr_access = {
+      description       = "Allow pods to communicate with the cluster API Server"
+      protocol          = "tcp"
+      from_port         = 443
+      to_port           = 443
+      type              = "ingress"
+      cidr_blocks       = [data.aws_vpc.selected.cidr_block]
+    }
+  }
+  
+  # Managed node group defaults
   eks_managed_node_group_defaults = {
-    # Ensure tags are added to all resources created for node groups
-    # This addresses the organization policy "DenyWithNoCompTag"
+    # Apply consistent tagging to all node group resources
     tags = merge(
       {
         "ManagedBy" = "terraform"
@@ -239,92 +187,31 @@ module "eks" {
       var.component_id != "" ? { "ComponentID" = var.component_id } : {}
     )
 
-    # All node groups will use custom launch templates
+    # Always use custom launch templates
     use_custom_launch_template = true
+
+    # Don't create launch templates in the EKS module, we manage them ourselves
+    create_launch_template = false
   }
 
-  # Managed node groups with custom launch templates inside each node group
+  # Managed node groups configuration with launch templates
   eks_managed_node_groups = {
     for name, group in local.managed_node_groups : name => merge(
       group,
+      # Configure launch template based on whether using external templates or our own
+      local.use_existing_launch_templates ?
       {
-        # FORCE RECREATION: Set these to null to force creation of a new template
-        # This is the key to ensuring our user_data gets applied
-        launch_template_name    = null
-        launch_template_id      = null
-        launch_template_version = "$Latest"
-
-        # Always create a new launch template with our custom user data
-        create_launch_template      = true
-        launch_template_description = "Custom launch template for ${name} EKS managed node group ${timestamp()}"
-        # Set AMI ID directly here instead of getting it from custom_launch_templates
-        ami_id = lookup(group, "ami_id", "")
-
-        # NEW APPROACH: Using the module's bootstrap user data mechanism
-        # This enables the module to generate the correct bootstrap script
-
-        # Enable the module's bootstrap user data generation
-        enable_bootstrap_user_data = true
-
-        # Add custom script before the main bootstrap
-        pre_bootstrap_user_data = <<-EOT
-          #!/bin/bash
-          set -ex
-          
-          # Basic system configuration
-          swapoff -a
-          set -o xtrace
-          
-          # Enable IP forwarding for Kubernetes networking
-          echo 1 > /proc/sys/net/ipv4/ip_forward
-          echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
-          sysctl -p
-          
-          # Configure kernel parameters for Kubernetes
-          cat <<EOF > /etc/sysctl.d/99-kubernetes.conf
-          net.ipv4.tcp_keepalive_time = 600
-          net.ipv4.tcp_keepalive_intvl = 30
-          net.ipv4.tcp_keepalive_probes = 10
-          net.ipv4.ip_local_port_range = 1024 65000
-          net.ipv4.tcp_tw_reuse = 1
-          fs.file-max = 2097152
-          fs.inotify.max_user_watches = 524288
-          vm.max_map_count = 262144
-          EOF
-          sysctl --system
-          
-          # Log bootstrap process starting
-          echo "Node pre-bootstrap configuration complete"
-        EOT
-
-        # Add bootstrap extra args for kubelet configuration
-        bootstrap_extra_args = "--use-max-pods false --kubelet-extra-args '--max-pods=${lookup(group, "max_pods", "70")}'"
-
-        block_device_mappings = try(local.custom_launch_templates[name].block_device_mappings, {})
-        metadata_options      = try(local.custom_launch_templates[name].metadata_options, {})
-        monitoring            = try(local.custom_launch_templates[name].monitoring, {})
-        # The EKS module expects a list of resource types as strings
-        tag_specifications = ["instance", "volume", "network-interface"]
-
-        # Add all necessary tags directly to the node group's tags
-        tags = merge(
-          lookup(group, "tags", {}),
-          {
-            "Name"        = lookup(group, "name", name)
-            "ClusterName" = local.name
-            "ManagedBy"   = "terraform"
-          },
-          var.component_id != "" ? { "ComponentID" = var.component_id } : {}
-        )
+        # Use existing launch templates provided in variables
+        launch_template_id      = lookup(var.launch_template_ids, name, null)
+        launch_template_version = lookup(var.launch_template_versions, name, "$Latest")
+      } :
+      {
+        # Use our shared custom launch template
+        launch_template_id      = aws_launch_template.node_group_launch_template[0].id
+        launch_template_version = aws_launch_template.node_group_launch_template[0].latest_version
       }
     )
   }
-
-  # Cluster IP family
-  cluster_ip_family = var.cluster_ip_family
-
-  # Service CIDR
-  cluster_service_ipv4_cidr = var.service_ipv4_cidr
 
   # Access management (v20+ uses access entries instead of aws-auth ConfigMap)
   authentication_mode = "API_AND_CONFIG_MAP"
@@ -344,8 +231,9 @@ module "eks" {
     } if lookup(role, "rolearn", "") != ""
   }
 
-  # Cluster addons
+  # Cluster addons with conditional configuration based on feature flags
   cluster_addons = {
+    # Core addons - always enabled
     coredns = {
       most_recent = true
     }
@@ -355,23 +243,37 @@ module "eks" {
     vpc-cni = {
       most_recent = true
     }
-    # Add EBS CSI driver as a managed add-on if enabled
-    aws-ebs-csi-driver = var.enable_ebs_csi_driver ? {
-      most_recent              = true
-      service_account_role_arn = var.ebs_csi_driver_role_arn
-    } : null
 
-    # Add EFS CSI driver as a managed add-on if enabled
-    aws-efs-csi-driver = var.enable_efs_csi_driver ? {
-      most_recent              = true
-      service_account_role_arn = var.efs_csi_driver_role_arn
-    } : null
+    # Core add-ons - always enabled
+    #aws-ebs-csi-driver = {
+    #  most_recent              = true
+    #  service_account_role_arn = var.ebs_csi_driver_role_arn != "" ? var.ebs_csi_driver_role_arn : null
+    #}
+
+    #aws-efs-csi-driver = {
+    #  most_recent              = true
+    #  service_account_role_arn = var.efs_csi_driver_role_arn != "" ? var.efs_csi_driver_role_arn : null
+    #}
+
+    #external-dns = {
+    #  most_recent              = true
+    #  service_account_role_arn = var.external_dns_role_arn != "" ? var.external_dns_role_arn : null
+    #}
+
+    #cert-manager = {
+    #  most_recent              = true
+    #  service_account_role_arn = var.cert_manager_role_arn != "" ? var.cert_manager_role_arn : null
+    #}
   }
 
-  # Enable OIDC provider for IAM Roles for Service Accounts (IRSA)
-  # This creates an IAM OIDC provider for the cluster
-  # The root module uses this OIDC provider for all add-on IAM roles
+  # Enable IAM Roles for Service Accounts (IRSA)
   enable_irsa = true
 
+  # Apply consistent tags
   tags = var.tags
+
+  # Ensure launch template exists before EKS cluster
+  depends_on = [
+    aws_launch_template.node_group_launch_template
+  ]
 }
