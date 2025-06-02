@@ -157,6 +157,9 @@ module "karpenter" {
   create_access_entry = true
   access_entry_type   = "EC2_LINUX"
 
+  # Instance profile settings - create the instance profile using existing role
+  create_instance_profile = true
+
   # Enable SQS queue for spot termination handling
   create_queue = true
 
