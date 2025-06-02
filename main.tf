@@ -3,6 +3,9 @@
  *
  * This module creates an EKS cluster with managed node groups and optional add-ons.
  * It supports custom launch templates and various IAM role configurations.
+ * 
+ * Terraform outputs are exported as both JSON and dotenv files for use by GitLab CI/CD child pipelines
+ * that handle Helm chart deployments for add-ons.
  */
 
 provider "aws" {
@@ -47,7 +50,7 @@ locals {
 
     # Optional add-ons - controlled by both feature flags and global deploy_optional_addons flag
     #aws_load_balancer_controller = var.deploy_optional_addons && var.enable_aws_load_balancer_controller
-    #karpenter                    = var.deploy_optional_addons && local.use_karpenter
+    karpenter = var.node_scaling_method == "karpenter"
     #cluster_autoscaler           = var.deploy_optional_addons && local.use_cluster_autoscaler
     #keda                         = var.deploy_optional_addons && var.enable_keda
     #prometheus                   = var.deploy_optional_addons && var.enable_prometheus
@@ -69,6 +72,24 @@ locals {
     local.component_id_tag # Add ComponentID tag conditionally
   )
 
+  # Karpenter-specific resources for exports (only if Karpenter is enabled)
+  karpenter_resources = local.addons_enabled.karpenter ? {
+    karpenter_controller_role_arn = module.karpenter[0].controller_iam_role_arn
+    karpenter_node_role_arn       = module.karpenter[0].node_role_arn
+    karpenter_sqs_queue_name      = module.karpenter[0].sqs_queue_name
+    karpenter_instance_profile    = module.karpenter[0].node_instance_profile_name
+  } : {}
+
+  # Combine all enabled add-ons for export
+  addon_resources = merge(
+    {
+      cluster_name    = local.name
+      aws_region      = var.region
+      aws_account_id  = data.aws_caller_identity.current.account_id
+    },
+    local.karpenter_resources
+    # Add other add-on resources here as needed
+  )
 }
 
 
@@ -117,5 +138,36 @@ module "eks_cluster" {
 # Core add-ons - always enabled regardless of feature flags
 # These modules will be created after the EKS cluster in a separate apply phase
 
+# Karpenter module - will be created if node_scaling_method is set to "karpenter"
+module "karpenter" {
+  count  = local.addons_enabled.karpenter ? 1 : 0
+  source = "./modules/karpenter"
+
+  # Ensure this module runs after the EKS cluster is fully deployed
+  depends_on = [module.eks_cluster]
+  
+  cluster_name      = local.name
+  oidc_provider_arn = module.eks_cluster.oidc_provider_arn
+
+  # Use existing node IAM role if provided
+  create_node_iam_role = var.create_node_iam_role
+  node_iam_role_arn    = var.create_node_iam_role ? "" : var.node_iam_role_arn
+
+  # Create access entry for Karpenter nodes
+  create_access_entry = true
+  access_entry_type   = "EC2_LINUX"
+
+  # Enable SQS queue for spot termination handling
+  create_queue = true
+
+  # Additional policies
+  attach_ssm_policy        = true
+  create_additional_policy = true
+  
+  # Create AWS Spot service-linked role (required for Karpenter spot instances)
+  create_spot_service_linked_role = true
+
+  tags = local.tags
+}
 
 

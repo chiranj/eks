@@ -26,7 +26,7 @@ output "cluster_oidc_issuer_url" {
 
 output "oidc_provider_arn" {
   description = "The ARN of the OIDC Provider for the EKS cluster"
-  value       = local.oidc_provider_arn
+  value       = module.eks_cluster.oidc_provider_arn
 }
 
 output "enabled_addons" {
@@ -38,8 +38,11 @@ output "enabled_addons" {
     } : null
 
     karpenter = local.addons_enabled.karpenter ? {
-      enabled      = true
-      iam_role_arn = try(module.karpenter_iam[0].role_arn, "")
+      enabled             = true
+      controller_role_arn = try(module.karpenter[0].controller_iam_role_arn, "")
+      node_role_arn       = try(module.karpenter[0].node_role_arn, "")
+      instance_profile    = try(module.karpenter[0].node_instance_profile_name, "")
+      sqs_queue_name      = try(module.karpenter[0].sqs_queue_name, "")
     } : null
 
     cluster_autoscaler = local.addons_enabled.cluster_autoscaler ? {
@@ -139,9 +142,24 @@ output "aws_load_balancer_controller_role_arn" {
   value       = local.addons_enabled.aws_load_balancer_controller ? try(module.aws_load_balancer_controller_iam[0].role_arn, "") : ""
 }
 
-output "karpenter_role_arn" {
-  description = "ARN of the IAM role for Karpenter"
-  value       = local.addons_enabled.karpenter ? try(module.karpenter_iam[0].role_arn, "") : ""
+output "karpenter_controller_role_arn" {
+  description = "ARN of the IAM controller role for Karpenter"
+  value       = local.addons_enabled.karpenter ? try(module.karpenter[0].controller_iam_role_arn, "") : ""
+}
+
+output "karpenter_node_role_arn" {
+  description = "ARN of the IAM node role for Karpenter"
+  value       = local.addons_enabled.karpenter ? try(module.karpenter[0].node_role_arn, "") : ""
+}
+
+output "karpenter_instance_profile" {
+  description = "Name of the instance profile for Karpenter nodes"
+  value       = local.addons_enabled.karpenter ? try(module.karpenter[0].node_instance_profile_name, "") : ""
+}
+
+output "karpenter_sqs_queue_name" {
+  description = "Name of the SQS queue for Karpenter interruption handling"
+  value       = local.addons_enabled.karpenter ? try(module.karpenter[0].sqs_queue_name, "") : ""
 }
 
 output "cluster_autoscaler_role_arn" {

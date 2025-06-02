@@ -68,7 +68,7 @@ resource "aws_launch_template" "node_group_launch_template" {
   # User data to properly bootstrap nodes to the cluster
   # Note: The EKS module will update this template with proper values at runtime
   # First phase bootstrap with placeholders; EKS module will complete the actual bootstrap
-  user_data = base64encode(templatefile("${path.module}/templates/user-data.tpl", {
+  user_data = base64encode(templatefile("${path.module}/templates/user-data.sh.tpl", {
     cluster_name         = local.name
     cluster_endpoint     = "placeholder-for-cluster-endpoint"
     cluster_ca_cert      = "placeholder-for-cluster-ca"
@@ -168,15 +168,15 @@ module "eks" {
   # Add VPC CIDR to the cluster security group for kubectl access
   cluster_security_group_additional_rules = {
     vpc_cidr_access = {
-      description       = "Allow pods to communicate with the cluster API Server"
-      protocol          = "tcp"
-      from_port         = 443
-      to_port           = 443
-      type              = "ingress"
-      cidr_blocks       = [data.aws_vpc.selected.cidr_block]
+      description = "Allow pods to communicate with the cluster API Server"
+      protocol    = "tcp"
+      from_port   = 443
+      to_port     = 443
+      type        = "ingress"
+      cidr_blocks = [data.aws_vpc.selected.cidr_block]
     }
   }
-  
+
   # Managed node group defaults
   eks_managed_node_group_defaults = {
     # Apply consistent tagging to all node group resources
