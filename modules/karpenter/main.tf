@@ -11,13 +11,8 @@ locals {
   node_role_name        = local.has_node_iam_role_arn ? reverse(split("/", var.node_iam_role_arn))[0] : ""
 }
 
-# Create the AWS Spot Fleet service-linked role (only if using spot instances)
-# This is disabled as we only use reserved instances per organizational policy
-resource "aws_iam_service_linked_role" "spot" {
-  count            = var.create_spot_service_linked_role ? 1 : 0
-  aws_service_name = "spot.amazonaws.com"
-  description      = "Service-linked role for AWS Spot Fleet (required for Karpenter spot instances)"
-}
+# We don't create the Spot Fleet service-linked role as we only use reserved instances
+# per organizational policy
 
 # Karpenter module configuration
 module "karpenter" {

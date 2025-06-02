@@ -70,8 +70,3 @@ variable "tags" {
   default     = {}
 }
 
-variable "create_spot_service_linked_role" {
-  description = "Whether to create the spot service linked role for AWS spot instance usage (required for Karpenter spot instances)"
-  type        = bool
-  default     = true
-}

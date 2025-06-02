@@ -170,8 +170,7 @@ module "karpenter" {
   attach_ssm_policy        = true
   create_additional_policy = true
   
-  # Don't create Spot service-linked role since we only use reserved instances
-  create_spot_service_linked_role = false
+  # We only use reserved instances per organizational policy
 
   tags = local.tags
 }
