@@ -147,6 +147,7 @@ variable "node_scaling_method" {
   }
 }
 
+
 variable "enable_keda" {
   description = "Enable KEDA for pod autoscaling (works well with Karpenter)"
   type        = bool

@@ -152,6 +152,9 @@ module "karpenter" {
   # Use existing node IAM role if provided
   create_node_iam_role = var.create_node_iam_role
   node_iam_role_arn    = var.create_node_iam_role ? "" : var.node_iam_role_arn
+  
+  # Controller IAM role settings - use an existing role for IRSA
+  create_controller_iam_role = false
 
   # Create access entry for Karpenter nodes
   create_access_entry = true
@@ -167,8 +170,8 @@ module "karpenter" {
   attach_ssm_policy        = true
   create_additional_policy = true
   
-  # Create AWS Spot service-linked role (required for Karpenter spot instances)
-  create_spot_service_linked_role = true
+  # Don't create Spot service-linked role since we only use reserved instances
+  create_spot_service_linked_role = false
 
   tags = local.tags
 }

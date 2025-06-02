@@ -11,12 +11,12 @@ locals {
   node_role_name        = local.has_node_iam_role_arn ? reverse(split("/", var.node_iam_role_arn))[0] : ""
 }
 
-# Create the AWS Spot Fleet service-linked role (required for Karpenter to use spot instances)
-# This only needs to be created once per AWS account
+# Create the AWS Spot Fleet service-linked role (only if using spot instances)
+# This is disabled as we only use reserved instances per organizational policy
 resource "aws_iam_service_linked_role" "spot" {
   count            = var.create_spot_service_linked_role ? 1 : 0
   aws_service_name = "spot.amazonaws.com"
-  description      = "Service-linked role for AWS Spot Fleet (required for Karpenter)"
+  description      = "Service-linked role for AWS Spot Fleet (required for Karpenter spot instances)"
 }
 
 # Karpenter module configuration
@@ -30,8 +30,14 @@ module "karpenter" {
   create_node_iam_role = var.create_node_iam_role
   node_iam_role_arn    = local.has_node_iam_role_arn ? var.node_iam_role_arn : null
 
-  # Pod identity settings - use IRSA provider ARN
-  enable_pod_identity = true
+  # Controller IAM role settings (IRSA role)
+  enable_irsa                     = true
+  irsa_oidc_provider_arn          = var.oidc_provider_arn
+  irsa_namespace_service_accounts = ["karpenter:karpenter"]
+  create_iam_role                 = false
+
+  # Pod identity settings - disable as we'll use IRSA instead
+  enable_pod_identity = false
 
   # Create access entry for Karpenter nodes
   create_access_entry = var.create_access_entry

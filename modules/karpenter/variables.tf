@@ -8,6 +8,12 @@ variable "oidc_provider_arn" {
   type        = string
 }
 
+variable "create_controller_iam_role" {
+  description = "Whether to create a new IAM role for the Karpenter controller (IRSA)"
+  type        = bool
+  default     = true
+}
+
 
 variable "create_node_iam_role" {
   description = "Whether to create a new IAM role for the nodes or use an existing one"
