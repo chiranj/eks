@@ -264,3 +264,39 @@ Error: Cannot assume IAM Role
     }
 ```
 
+odule.karpenter.aws_sqs_queue_policy.this[0]: Creating...
+
+module.karpenter.aws_cloudwatch_event_target.this["instance_rebalance"]: Creation complete after 0s [id=KarpenterInstanceRebalance-20250602170437375000000006-Karpent
+ 
+module.karpenter.aws_sqs_queue_policy.this[0]: Creation complete after 25s [id=https://sqs.us-east-1.amazonaws.com/583541782477/Karpenter-eks-paas-dev-cluster]
+
+╷
+
+│ Error: creating IAM Role (KarpenterController-20250602170437363300000004): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: 80280150-b619-4273-8bf8-fb43fb1854d9, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/aws-psb-lab-dev-role/aws-go-sdk-1748883877116986173 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/KarpenterController-20250602170437363300000004 with an explicit deny in an identity-based policy
+
+│ 
+
+│   with module.karpenter.aws_iam_role.controller[0],
+
+│   on .terraform/modules/karpenter/modules/karpenter/main.tf line 69, in resource "aws_iam_role" "controller":
+
+│   69: resource "aws_iam_role" "controller" {
+
+│ 
+
+╵
+
+╷
+
+│ Error: creating IAM Role (Karpenter-eks-paas-dev-cluster-20250602170437369200000005): operation error IAM: CreateRole, https response error StatusCode: 403, RequestID: 1868bc20-8703-43e0-b995-893618a1ef11, api error AccessDenied: User: arn:aws:sts::583541782477:assumed-role/aws-psb-lab-dev-role/aws-go-sdk-1748883877116986173 is not authorized to perform: iam:CreateRole on resource: arn:aws:iam::583541782477:role/Karpenter-eks-paas-dev-cluster-20250602170437369200000005 with an explicit deny in an identity-based policy
+
+│ 
+
+│   with module.karpenter.aws_iam_role.node[0],
+
+│   on .terraform/modules/karpenter/modules/karpenter/main.tf line 295, in resource "aws_iam_role" "node":
+
+│  295: resource "aws_iam_role" "node" {
+
+│
+ 
