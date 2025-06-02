@@ -76,26 +76,29 @@ flowchart LR
 
 Using a single role (Service Role 5) for all add-ons violates the principle of least privilege:
 
+#### Current: Single Role Approach
+
 ```mermaid
 graph TD
-    subgraph "Current: Single Role Approach"
-        SR5[Service Role 5] --> ALL[All Add-on Permissions]
-        ALL --> P1[Karpenter Permissions]
-        ALL --> P2[Cert Manager Permissions]
-        ALL --> P3[Load Balancer Permissions]
-        ALL --> P4[External DNS Permissions]
-        ALL --> P5[EBS CSI Driver Permissions]
-        ALL --> P6[Cluster Autoscaler Permissions]
-    end
-    
-    subgraph "Ideal: Dedicated Role Approach"
-        K[Karpenter Role] --> KP[Karpenter Permissions Only]
-        C[Cert Manager Role] --> CP[Cert Manager Permissions Only]
-        L[Load Balancer Role] --> LP[Load Balancer Permissions Only]
-        E[External DNS Role] --> EP[External DNS Permissions Only]
-        EB[EBS CSI Driver Role] --> EBP[EBS CSI Driver Permissions Only]
-        CA[Cluster Autoscaler Role] --> CAP[Cluster Autoscaler Permissions Only]
-    end
+    SR5[Service Role 5] --> ALL[All Add-on Permissions]
+    ALL --> P1[Karpenter Permissions]
+    ALL --> P2[Cert Manager Permissions]
+    ALL --> P3[Load Balancer Permissions]
+    ALL --> P4[External DNS Permissions]
+    ALL --> P5[EBS CSI Driver Permissions]
+    ALL --> P6[Cluster Autoscaler Permissions]
+```
+
+#### Ideal: Dedicated Role Approach
+
+```mermaid
+graph TD
+    K[Karpenter Role] --> KP[Karpenter Permissions Only]
+    C[Cert Manager Role] --> CP[Cert Manager Permissions Only]
+    L[Load Balancer Role] --> LP[Load Balancer Permissions Only]
+    E[External DNS Role] --> EP[External DNS Permissions Only]
+    EB[EBS CSI Driver Role] --> EBP[EBS CSI Driver Permissions Only]
+    CA[Cluster Autoscaler Role] --> CAP[Cluster Autoscaler Permissions Only]
 ```
 
 ### Maintenance Risks
