@@ -21,3 +21,4 @@ build-and-push:
       --destination $ECR_REPOSITORY_URL:latest
 
 ```
+echo '{"auths":{"'$ECR_REGISTRY'":{"auth":"AWS:$ECR_TOKEN"}}}' > /kaniko/.docker/config.json
